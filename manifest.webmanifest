@@ -1,0 +1,15 @@
+{
+  "name": "Tabe — Calorie & Weight",
+  "short_name": "Tabe",
+  "description": "Manual calorie counting and weight-trend tracker.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#fbf8ff",
+  "theme_color": "#3f5aa8",
+  "orientation": "portrait",
+  "icons": [
+    { "src": "./icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "./icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

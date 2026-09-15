@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="120" fill="#3f5aa8"/>
+  <!-- calorie ring -->
+  <circle cx="256" cy="256" r="150" fill="none" stroke="#ffffff" stroke-width="34" stroke-linecap="round"
+    stroke-dasharray="760 190" transform="rotate(-90 256 256)" opacity="0.95"/>
+  <!-- bowl -->
+  <path d="M170 244 a86 86 0 0 0 172 0 z" fill="#ffffff"/>
+  <rect x="168" y="226" width="176" height="30" rx="15" fill="#ffffff"/>
+  <!-- steam -->
+  <path d="M232 150 q-14 16 0 32 M280 150 q-14 16 0 32" fill="none" stroke="#ffffff" stroke-width="12" stroke-linecap="round" opacity="0.85"/>
+</svg>
