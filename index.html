@@ -157,6 +157,14 @@ nav.tabs button.on .ni{background:var(--primary-container);color:var(--on-primar
 .sheet h2{font-size:19px;margin-bottom:4px}
 .favrow{display:flex;gap:8px;overflow-x:auto;padding:4px 0 8px;margin:0 -2px}
 .favchip{flex:none;background:var(--secondary-container);color:var(--on-secondary-container);border-radius:14px;padding:9px 13px;font-size:13px;font-weight:600;white-space:nowrap;max-width:170px;overflow:hidden;text-overflow:ellipsis}
+.searchres{max-height:250px;overflow:auto;margin:2px 0}
+.sr{display:flex;align-items:center;gap:10px;padding:10px;border-radius:14px;background:var(--sc);margin:6px 0;cursor:pointer}
+.sr:active{background:var(--sc-high)}
+.sr .srn{flex:1;min-width:0}
+.sr .srn .t{font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sr .srn .m{font-size:12px;color:var(--on-surface-variant)}
+.sr .tag{flex:none;font-size:10px;font-weight:800;letter-spacing:.3px;padding:3px 8px;border-radius:999px;background:var(--secondary-container);color:var(--on-secondary-container)}
+.sr .tag.off{background:var(--tertiary-container);color:var(--on-tertiary-container)}
 .checkrow{display:flex;align-items:center;gap:10px;margin:12px 2px;font-size:14px;font-weight:600;color:var(--on-surface-variant)}
 .checkrow input{width:20px;height:20px;accent-color:var(--primary)}
 /* snackbar */
@@ -229,7 +237,7 @@ const round=(n,p=0)=>{const f=10**p;return Math.round(n*f)/f;};
 
 /* ---- default + state ---- */
 function blank(){return{
-  settings:{maintenance:2200,target:1800,protein:150,goalWeight:180,goalMode:"cut",unit:"lb",reminder:false},
+  settings:{maintenance:2200,target:1800,protein:150,goalWeight:180,goalMode:"cut",unit:"lb",reminder:false,usdaKey:""},
   days:{},        // date -> {entries:[{id,name,cal,protein,meal,ts}], note:""}
   weights:{},     // date -> {w:Number, ts}
   favorites:[],   // {id,name,cal,protein,meal}
@@ -611,6 +619,11 @@ function renderSettings(){
     <div class="status" id="cloudStatus"></div>
   </div>`;
 
+  h+=`<div class="card flat"><h3>Food database</h3>
+    <div class="tiny" style="margin-bottom:8px">Search uses <b>Open Food Facts</b> (packaged foods) — free, no setup. Add a free <b>USDA FoodData Central</b> key for better whole-food results: get one in ~2 min at <a href="https://fdc.nal.usda.gov/api-key-signup.html" target="_blank" rel="noopener" style="color:var(--primary)">fdc.nal.usda.gov/api-key-signup.html</a>, then paste it here.</div>
+    <div class="field"><label>USDA API key (optional)</label><input class="inp" id="sUsda" placeholder="paste key…" value="${esc(st.usdaKey||"")}"></div>
+  </div>`;
+
   h+=`<div class="card flat"><h3>App</h3>
     <div class="checkrow"><input type="checkbox" id="sReminder" ${st.reminder?"checked":""}><label for="sReminder" style="margin:0">Daily weigh-in reminder (morning)</label></div>
     <div class="btnrow" style="margin-top:8px">
@@ -628,6 +641,7 @@ function renderSettings(){
   modeHint();
   const bind=(id,key,int)=>{ $("#"+id).addEventListener("change",e=>{ S.settings[key]=int?Math.round(num(e.target.value)):num(e.target.value); save(); }); };
   bind("sMaint","maintenance",1); bind("sTarget","target",1); bind("sProtein","protein",1); bind("sGoal","goalWeight",0);
+  $("#sUsda").addEventListener("change",e=>{ S.settings.usdaKey=e.target.value.trim(); save(); });
   $$("#sMode button").forEach(b=>b.onclick=()=>{ S.settings.goalMode=b.dataset.m; $$("#sMode button").forEach(x=>x.classList.toggle("on",x===b)); modeHint(); save(); });
   $("#sReminder").onchange=e=>{ S.settings.reminder=e.target.checked; save(); if(e.target.checked) reqReminder(); };
   $("#sTheme").onclick=toggleTheme;
@@ -650,6 +664,9 @@ function openFoodSheet(meal,prefill){
     <h2>Add to ${MEALS.find(m=>m[0]===meal)?.[1]||"meal"}</h2>
     <div class="status" id="scanStat"></div>
     ${favs.length?`<div class="tiny" style="margin-top:6px">Favorites — tap to log</div><div class="favrow">${favs.map(f=>`<button class="favchip" data-fav="${f.id}">${esc(f.name)} · ${Math.round(num(f.cal))}</button>`).join("")}</div>`:""}
+    <div class="field" style="margin-top:8px"><label>Search food database</label><input class="inp" id="fSearch" placeholder="Search foods… e.g. chicken breast" autocomplete="off"></div>
+    <div class="status" id="searchStat"></div>
+    <div class="searchres" id="searchRes"></div>
     <div class="btnrow" style="margin:8px 0"><button class="btn tonal wide" id="scanBtn">📷 Scan barcode</button></div>
     <div id="scanHost"></div>
     <div class="field"><label>Food</label><input class="inp" id="fName" placeholder="e.g. Greek yogurt" value="${esc(p.name||"")}"></div>
@@ -662,6 +679,10 @@ function openFoodSheet(meal,prefill){
   openScrim();
   $$("[data-fav]").forEach(b=>b.onclick=()=>{ const f=S.favorites.find(x=>x.id===b.dataset.fav); if(f) logFood(meal,{name:f.name,cal:f.cal,protein:f.protein}); closeScrim(); });
   $("#scanBtn").onclick=()=>startScan(meal);
+  let stmr=null;
+  $("#fSearch").addEventListener("input",e=>{ clearTimeout(stmr); const q=e.target.value.trim();
+    if(q.length<2){ $("#searchRes").innerHTML=""; $("#searchStat").textContent=""; return; }
+    stmr=setTimeout(()=>doFoodSearch(q),350); });
   $("#fSave").onclick=()=>{
     const name=$("#fName").value.trim(), cal=num($("#fCal").value), prot=num($("#fProt").value);
     if(!cal&&!name){ toast("Enter calories"); return; }
@@ -669,6 +690,68 @@ function openFoodSheet(meal,prefill){
     if($("#fFav").checked&&name) addFav({name,cal,protein:prot,meal});
     closeScrim();
   };
+}
+/* ---- food database search: USDA FoodData Central + Open Food Facts, merged ---- */
+let searchSeq=0;
+async function doFoodSearch(q){
+  const seq=++searchSeq; const stat=$("#searchStat"), box=$("#searchRes"); if(!stat||!box) return;
+  stat.textContent="Searching…"; stat.dataset.state="";
+  const key=(S.settings.usdaKey||"").trim();
+  const jobs=[]; if(key) jobs.push(usdaSearch(q,key)); jobs.push(offSearch(q));
+  const settled=await Promise.allSettled(jobs);
+  if(seq!==searchSeq) return; // a newer search superseded this one
+  let res=[]; settled.forEach(s=>{ if(s.status==="fulfilled"&&Array.isArray(s.value)) res=res.concat(s.value); });
+  res=res.filter(r=>r&&r.name&&r.cal).slice(0,40);
+  if(!res.length){ box.innerHTML="";
+    stat.textContent=key?"No matches — try different words, or scan the barcode.":"No matches. Tip: add a free USDA key in Settings for whole-food results.";
+    stat.dataset.state=""; return; }
+  stat.textContent=`${res.length} result${res.length>1?"s":""} — tap to fill`;
+  box.innerHTML=res.map((r,i)=>`<div class="sr" data-sr="${i}">
+    <div class="srn"><div class="t">${esc(r.name)}</div><div class="m">${Math.round(r.cal)} kcal${r.protein?" · "+round(r.protein,0)+"g P":""} · ${esc(r.basis)}</div></div>
+    <span class="tag ${r.src==='OFF'?'off':''}">${r.src}</span></div>`).join("");
+  $$("[data-sr]").forEach(b=>b.onclick=()=>pickSearch(res[+b.dataset.sr]));
+}
+async function usdaSearch(q,key){
+  try{
+    const dt=encodeURIComponent("Foundation,SR Legacy,Survey (FNDDS),Branded");
+    const r=await fetch(`https://api.nal.usda.gov/fdc/v1/foods/search?api_key=${encodeURIComponent(key)}&query=${encodeURIComponent(q)}&pageSize=20&dataType=${dt}`);
+    if(!r.ok) return []; const j=await r.json(); const out=[];
+    (j.foods||[]).forEach(f=>{
+      const nuts=f.foodNutrients||[]; const find=nn=>{const x=nuts.find(o=>nn.includes(String(o.nutrientNumber)));return x?num(x.value):0;};
+      let cal=find(["208","957"]), protein=find(["203"]), basis="per 100g";
+      if(f.labelNutrients&&f.labelNutrients.calories){ cal=num(f.labelNutrients.calories.value);
+        if(f.labelNutrients.protein) protein=num(f.labelNutrients.protein.value);
+        basis=f.servingSize?("per serving "+round(num(f.servingSize),0)+(f.servingSizeUnit||"")):"per serving"; }
+      const name=[f.brandName||f.brandOwner,f.description].filter(Boolean).join(" — ");
+      if(name&&cal) out.push({name,cal,protein,basis,src:"USDA"});
+    });
+    return out;
+  }catch(e){ return []; }
+}
+async function offSearch(q){
+  try{
+    const r=await fetch(`https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(q)}&search_simple=1&action=process&json=1&page_size=20&fields=product_name,brands,nutriments,serving_size`);
+    const j=await r.json(); const out=[];
+    (j.products||[]).forEach(p=>{ const n=p.nutriments||{};
+      const name=[p.brands,p.product_name].filter(Boolean).join(" ").trim(); if(!name) return;
+      const kcalS=num(n["energy-kcal_serving"]), kcal100=num(n["energy-kcal_100g"]);
+      const protS=num(n["proteins_serving"]), prot100=num(n["proteins_100g"]);
+      let cal,protein,basis;
+      if(kcalS){ cal=kcalS; protein=protS; basis=p.serving_size?("per serving "+p.serving_size):"per serving"; }
+      else{ cal=kcal100; protein=prot100; basis="per 100g"; }
+      if(cal) out.push({name,cal,protein,basis,src:"OFF"});
+    });
+    return out;
+  }catch(e){ return []; }
+}
+function pickSearch(r){ if(!r) return;
+  const per100=/100 ?g/i.test(r.basis);
+  $("#fName").value=r.name+(per100?" (100g)":"");
+  $("#fCal").value=Math.round(r.cal);
+  $("#fProt").value=r.protein?round(r.protein,1):"";
+  $("#fFav").checked=false;
+  const stat=$("#searchStat"); if(stat){ stat.textContent=per100?"Filled per 100g — adjust calories to your portion.":"Filled — adjust the amount if needed."; stat.dataset.state="on"; }
+  $("#fCal").focus(); $("#fName").scrollIntoView({behavior:"smooth",block:"center"});
 }
 function logFood(meal,o){ const d=day(curDate); d.entries.push({id:uid(),name:o.name||"Food",cal:num(o.cal),protein:num(o.protein),meal,ts:Date.now()}); save(); if(view==="today")renderToday(); else render(); toast("Logged"); }
 function addFav(o){ if(S.favorites.some(f=>f.name.toLowerCase()===o.name.toLowerCase()&&num(f.cal)===num(o.cal)))return; S.favorites.unshift({id:uid(),name:o.name,cal:num(o.cal),protein:num(o.protein),meal:o.meal}); if(S.favorites.length>40)S.favorites.pop(); save(); }
