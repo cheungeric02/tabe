@@ -170,7 +170,8 @@ nav.tabs button.on .ni{background:var(--primary-container);color:var(--on-primar
 .favrow{display:flex;gap:8px;overflow-x:auto;padding:4px 0 8px;margin:0 -2px}
 .favchip{flex:none;background:var(--secondary-container);color:var(--on-secondary-container);border-radius:14px;padding:9px 13px;font-size:13px;font-weight:600;white-space:nowrap;max-width:170px;overflow:hidden;text-overflow:ellipsis}
 .searchres{max-height:250px;overflow:auto;margin:2px 0}
-.sheet.full .searchres{max-height:none;overflow:visible;flex:1 0 auto}
+.sheet.full .searchres{max-height:none;overflow:visible}
+.reclabel{margin-top:8px}
 .sr{display:flex;align-items:center;gap:10px;padding:10px;border-radius:14px;background:var(--sc);margin:6px 0;cursor:pointer}
 .sr:active{background:var(--sc-high)}
 .sr .srn{flex:1;min-width:0}
@@ -734,6 +735,7 @@ function openFoodSheet(meal,prefill){
     <div id="scanHost"></div>
     ${favs.length?`<div class="tiny" style="margin-top:2px">Favorites — tap to log</div>
       <div class="favrow">${favs.map(f=>`<button class="favchip" data-fav="${f.id}">${f.emoji||foodEmoji(f.name)} ${esc(f.name)} · ${Math.round(num(f.cal))}</button>`).join("")}</div>`:""}
+    <div id="recentWrap"></div>
     <div class="searchres" id="searchRes"></div>
     <div class="status" id="searchStat"></div>
     <details class="manual"${openManual?" open":""}><summary>＋ Or enter manually</summary>
@@ -747,11 +749,13 @@ function openFoodSheet(meal,prefill){
     </details>`;
   openScrim(true);
   $("#fdClose").onclick=closeScrim;
+  renderRecents(meal);
   $$("[data-fav]").forEach(b=>b.onclick=()=>{ const f=S.favorites.find(x=>x.id===b.dataset.fav); if(f) logFood(meal,{name:f.name,cal:f.cal,protein:f.protein,portion:f.portion||""}); });
   $("#scanBtn").onclick=()=>startScan(meal);
   let stmr=null;
   $("#fSearch").addEventListener("input",e=>{ clearTimeout(stmr); const q=e.target.value.trim();
-    if(q.length<2){ $("#searchRes").innerHTML=""; $("#searchStat").textContent=""; return; }
+    if(q.length<2){ $("#searchRes").innerHTML=""; $("#searchStat").textContent=""; $("#recentWrap").style.display=""; return; }
+    $("#recentWrap").style.display="none";
     stmr=setTimeout(()=>doFoodSearch(q,meal),350); });
   const fs=$("#fSave"); if(fs) fs.onclick=()=>{
     const name=$("#fName").value.trim(), cal=num($("#fCal").value), prot=num($("#fProt").value);
@@ -761,6 +765,25 @@ function openFoodSheet(meal,prefill){
     closeScrim();
   };
 }
+/* ---- recently-logged foods (dedup by name+cal, newest first) ---- */
+function recentFoods(limit){ limit=limit||12; const seen=new Set(), all=[];
+  for(const k in S.days){ (S.days[k].entries||[]).forEach(e=>{ if(e&&e.name) all.push(e); }); }
+  all.sort((a,b)=>(b.ts||0)-(a.ts||0));
+  const out=[]; for(const e of all){ const key=String(e.name).toLowerCase()+"|"+Math.round(num(e.cal)); if(seen.has(key))continue; seen.add(key); out.push(e); if(out.length>=limit)break; }
+  return out; }
+function renderRecents(meal){ const box=$("#recentWrap"); if(!box)return;
+  const rec=recentFoods(12);
+  if(!rec.length){ box.innerHTML=""; return; }
+  box.innerHTML=`<div class="tiny reclabel">Recent — tap to log again</div>
+    <div class="searchres">${rec.map((e,i)=>`<div class="fdrow" data-rec="${i}">
+      <div class="fdemoji">${e.emoji||foodEmoji(e.name)}</div>
+      <div class="fdmid"><div class="t">${esc(e.name||"Food")}</div>
+        <div class="m">${Math.round(num(e.cal))} Cal${num(e.protein)?` · ${round(num(e.protein),0)}P`:""}</div>
+        ${e.portion?`<div class="sv">${esc(e.portion)}</div>`:""}</div>
+      <button class="fdadd" data-recadd="${i}" title="Log again">＋</button></div>`).join("")}</div>`;
+  const relog=i=>{ const r=rec[i]; logFood(meal,{name:r.name,cal:r.cal,protein:r.protein,portion:r.portion||""}); };
+  $$("#recentWrap [data-rec]").forEach(el=>el.onclick=ev=>{ if(ev.target.closest("[data-recadd]"))return; relog(+el.dataset.rec); });
+  $$("#recentWrap [data-recadd]").forEach(b=>b.onclick=ev=>{ ev.stopPropagation(); relog(+b.dataset.recadd); }); }
 /* ---- food helpers: emoji, serving parsing, scaling normalization ---- */
 const EMOJI=[[/chicken|poultry|nugget/,"🍗"],[/beef|steak|burger|angus|patty|meatball/,"🍔"],[/duck/,"🦆"],[/bacon|pork|ham|sausage/,"🥓"],[/fish|salmon|tuna|cod|tilapia/,"🐟"],[/shrimp|prawn/,"🦐"],[/sushi|sashimi/,"🍣"],[/egg/,"🥚"],[/milk|yogurt|yoghurt|cream|latte/,"🥛"],[/cheese|fromage/,"🧀"],[/bread|bun|bagel|toast|brioche|roll/,"🍞"],[/rice/,"🍚"],[/pasta|noodle|spaghetti|macaroni/,"🍝"],[/pizza/,"🍕"],[/apple/,"🍎"],[/banana/,"🍌"],[/berry|strawberr|blueberr/,"🍓"],[/orange|citrus/,"🍊"],[/grape/,"🍇"],[/tomato/,"🍅"],[/potato|fries|chip/,"🥔"],[/salad|lettuce|greens|spinach/,"🥗"],[/coffee|espresso|cappuc/,"☕"],[/\btea\b|matcha/,"🍵"],[/beer|lager|ale/,"🍺"],[/wine/,"🍷"],[/choc/,"🍫"],[/cookie|biscuit/,"🍪"],[/cake|muffin|pastry|donut/,"🍰"],[/ice ?cream|gelato/,"🍦"],[/nut|almond|peanut|cashew/,"🥜"],[/avocado/,"🥑"],[/corn/,"🌽"],[/carrot/,"🥕"],[/broccoli/,"🥦"],[/oat|cereal|granola|porridge/,"🥣"],[/protein|whey|\bbar\b/,"💪"],[/water/,"💧"],[/juice|smoothie|shake/,"🧃"],[/soup|broth|stew/,"🍲"],[/taco|burrito|wrap/,"🌮"],[/honey|syrup/,"🍯"],[/butter/,"🧈"]];
 function foodEmoji(name){ const s=String(name||"").toLowerCase(); for(const[re,e] of EMOJI){ if(re.test(s)) return e; } return "🍽️"; }
