@@ -1006,11 +1006,14 @@ function loadZXing(){ return new Promise((res,rej)=>{ if(window.ZXingBrowser)ret
 /* ============================ Weigh-in sheet ============================ */
 function openWeighSheet(dateOverride){
   const arr=weighArr(); const last=arr.length?arr[arr.length-1].w:num(S.settings.goalWeight)||170;
-  const d=dateOverride||todayStr();
+  const d=dateOverride||todayStr();               // the date currently loaded
+  const editing=!!dateOverride;                    // came from tapping an existing entry
   const cur=S.weights[d]?num(S.weights[d].w):last;
   $("#sheet").innerHTML=`<div class="grab"></div>
     <h2>⚖️ Weigh in</h2>
-    <div class="tiny" style="margin-bottom:8px">${d===todayStr()?"Today":fmtD(d)}${S.weights[d]?" · editing":""}</div>
+    <div class="field" style="margin-bottom:6px"><label>Day this applies to</label>
+      <input class="inp" type="date" id="wDate" value="${d}" max="${todayStr()}"></div>
+    <div class="tiny" id="wHint" style="margin-bottom:8px"></div>
     <div style="display:flex;align-items:center;gap:12px;justify-content:center;margin:14px 0">
       <button class="btn outline" id="wMinus" style="width:56px;font-size:22px">−</button>
       <input class="inp" id="wVal" type="number" inputmode="decimal" step="0.1" value="${round(cur,1)}" style="text-align:center;font-size:30px;font-weight:800;width:150px">
@@ -1019,10 +1022,21 @@ function openWeighSheet(dateOverride){
     <div style="text-align:center;color:var(--on-surface-variant);margin-bottom:14px">lb · ± 0.2 per tap</div>
     <div class="btnrow"><button class="btn wide" id="wSave">Save weigh-in</button></div>`;
   openScrim();
-  const inp=$("#wVal");
+  const inp=$("#wVal"), dateEl=$("#wDate");
+  const updHint=()=>{ const nd=dateEl.value; const h=$("#wHint"); if(!h)return;
+    const lbl=nd===todayStr()?"Today":fmtD(nd);
+    h.textContent = S.weights[nd]?`Editing ${lbl}'s weigh-in`
+      : (editing&&nd!==d)?`Moving to ${lbl} (was ${d===todayStr()?"Today":fmtD(d)})`
+      : `New weigh-in for ${lbl}`; };
+  updHint();
   $("#wMinus").onclick=()=>inp.value=round(num(inp.value)-0.2,1);
   $("#wPlus").onclick=()=>inp.value=round(num(inp.value)+0.2,1);
-  $("#wSave").onclick=()=>{ const w=num(inp.value); if(w<=0){toast("Enter a weight");return;} S.weights[d]={w,ts:Date.now()}; save(); closeScrim(); toast("Weight saved"); if(view==="weight")renderWeight(); };
+  dateEl.addEventListener("change",()=>{ const nd=dateEl.value; if(S.weights[nd]) inp.value=round(num(S.weights[nd].w),1); updHint(); });
+  $("#wSave").onclick=()=>{ const w=num(inp.value); if(w<=0){toast("Enter a weight");return;}
+    const nd=dateEl.value||d; if(!nd){toast("Pick a date");return;}
+    if(editing&&nd!==d) delete S.weights[d];      // moved to a different day → drop the old day
+    S.weights[nd]={w,ts:Date.now()}; save(); closeScrim();
+    toast(editing&&nd!==d?"Weigh-in moved":"Weight saved"); if(view==="weight")renderWeight(); };
 }
 function delWeight(d){ const prev=S.weights[d]; delete S.weights[d]; save(); renderWeight(); showUndo("Weigh-in deleted",()=>{ S.weights[d]=prev; save(); renderWeight(); }); }
 
