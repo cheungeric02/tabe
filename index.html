@@ -80,6 +80,12 @@ header{position:sticky;top:0;z-index:30;background:color-mix(in srgb,var(--surfa
 .meal .mh .mt{font-weight:700;font-size:15px}
 .meal .mh .mc{font-size:12.5px;color:var(--on-surface-variant)}
 .meal .mh .add{margin-left:auto;color:var(--primary);font-weight:700;font-size:13px;padding:5px 12px;border-radius:999px;background:var(--sc)}
+.alcorow{display:flex;gap:8px;margin:2px 2px 8px;overflow-x:auto;padding-bottom:2px}
+.alcochip{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:1px;background:var(--secondary-container);color:var(--on-secondary-container);border-radius:16px;padding:10px 6px;font-weight:650}
+.alcochip:active{filter:brightness(.94)}
+.alcochip .ae{font-size:20px;line-height:1.2}
+.alcochip .an{font-size:12.5px;font-weight:700}
+.alcochip .ac{font-size:11px;opacity:.75}
 .entry{display:flex;align-items:center;gap:10px;padding:11px 12px;background:var(--sc-low);border-radius:16px;margin:6px 0}
 .entry.fav-src{}
 .entry .en{flex:1;min-width:0}
@@ -273,7 +279,13 @@ nav.tabs button.on .ni{background:var(--primary-container);color:var(--on-primar
 /* ============================ Tabe — app logic ============================ */
 "use strict";
 const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
-const MEALS=[["breakfast","Breakfast","🌅"],["lunch","Lunch","☀️"],["dinner","Dinner","🌙"],["snack","Snacks","🍎"]];
+const MEALS=[["breakfast","Breakfast","🌅"],["lunch","Lunch","☀️"],["dinner","Dinner","🌙"],["snack","Snacks","🍎"],["alcohol","Alcohol","🍺"]];
+// quick-log presets shown under the Alcohol meal (approx calories)
+const ALCOHOL_PRESETS=[
+  {name:"Light Beer",cal:103,protein:1,portion:"1 bottle (12 oz)",emoji:"🍺"},
+  {name:"Draft Beer",cal:200,protein:2,portion:"1 pint (16 oz)",emoji:"🍻"},
+  {name:"Liquor",cal:97,protein:0,portion:"1 shot (1.5 oz)",emoji:"🥃"}
+];
 const todayStr=()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");};
 const parseD=s=>{const[y,m,d]=s.split("-").map(Number);return new Date(y,m-1,d);};
 const fmtD=s=>parseD(s).toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"});
@@ -449,6 +461,7 @@ function renderToday(){
     h+=`<div class="meal" data-meal-drop="${key}">
       <div class="mh"><span>${emo}</span><span class="mt">${label}</span>${mc>0?`<span class="mc">${Math.round(mc)} kcal</span>`:""}
         <button class="add" data-addmeal="${key}">＋ Add</button></div>`;
+    if(key==="alcohol") h+=`<div class="alcorow">${ALCOHOL_PRESETS.map((p,i)=>`<button class="alcochip" data-alco="${i}"><span class="ae">${p.emoji}</span><span class="an">${p.name}</span><span class="ac">${p.cal} cal</span></button>`).join("")}</div>`;
     if(!items.length) h+=`<div class="empty">Nothing logged</div>`;
     items.forEach(e=>{ h+=`<div class="entry" data-eid="${e.id}">
       <span class="grip" data-drag="${e.id}" title="Drag to another meal">⠿</span>
@@ -464,6 +477,7 @@ function renderToday(){
   $("#main").innerHTML=h;
   $("#dayNote").addEventListener("change",e=>{ day(curDate).note=e.target.value; save(); });
   $$("[data-addmeal]").forEach(b=>b.onclick=()=>openFoodSheet(b.dataset.addmeal));
+  $$("[data-alco]").forEach(b=>b.onclick=()=>{ const p=ALCOHOL_PRESETS[+b.dataset.alco]; logFood("alcohol",{name:p.name,cal:p.cal,protein:p.protein,portion:p.portion}); });
   $$("[data-del]").forEach(b=>b.onclick=()=>delEntry(b.dataset.del));
   $$("[data-drag]").forEach(h=>h.addEventListener("pointerdown",beginDrag));
 }
