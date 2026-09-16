@@ -318,7 +318,7 @@ function normalize(o){
     settings:s,
     days:(o.days&&typeof o.days==="object")?o.days:{},
     weights:(o.weights&&typeof o.weights==="object")?o.weights:{},
-    favorites:Array.isArray(o.favorites)?o.favorites:[],
+    favorites:Array.isArray(o.favorites)?o.favorites.filter(f=>f&&f.name&&String(f.name).trim()):[],
     updatedAt:o.updatedAt||0
   };
 }
@@ -729,7 +729,7 @@ const setSyncKey=k=>{try{k?localStorage.setItem("tabe_synckey",k):localStorage.r
 
 /* ============================ Food entry sheet ============================ */
 function openFoodSheet(meal,prefill){
-  const favs=S.favorites.slice(0,20);
+  const favs=S.favorites.filter(f=>f&&f.name&&String(f.name).trim()).slice(0,20);
   const p=prefill||{};
   const mealLbl=MEALS.find(m=>m[0]===meal)?.[1]||"meal";
   const openManual=!!(p.name||p.cal!=null);
@@ -946,7 +946,7 @@ function quickAddFood(meal,f){
   logFood(meal,{name:f.name,cal:useServ?f.calServ:f.cal100,protein:useServ?f.protServ:f.prot100,portion:useServ?`1 ${f.servName}`:"100 g"});
 }
 function logFood(meal,o){ const d=day(curDate); d.entries.push({id:uid(),name:o.name||"Food",cal:num(o.cal),protein:num(o.protein),portion:o.portion||"",meal,ts:Date.now()}); save(); if(view==="today")renderToday(); else render(); toast("Added ✓"); }
-function addFav(o){ if(S.favorites.some(f=>f.name.toLowerCase()===o.name.toLowerCase()&&num(f.cal)===num(o.cal)))return; S.favorites.unshift({id:uid(),name:o.name,cal:num(o.cal),protein:num(o.protein),meal:o.meal,portion:o.portion||"",emoji:foodEmoji(o.name)}); if(S.favorites.length>40)S.favorites.pop(); save(); }
+function addFav(o){ const nm=o&&o.name?String(o.name).trim():""; if(!nm)return; if(S.favorites.some(f=>String(f.name||"").toLowerCase()===nm.toLowerCase()&&num(f.cal)===num(o.cal)))return; S.favorites.unshift({id:uid(),name:nm,cal:num(o.cal),protein:num(o.protein),meal:o.meal,portion:o.portion||"",emoji:foodEmoji(nm)}); if(S.favorites.length>40)S.favorites.pop(); save(); }
 function delEntry(id){
   const d=day(curDate); const i=d.entries.findIndex(e=>e.id===id); if(i<0)return;
   const [removed]=d.entries.splice(i,1); save(); renderToday();
