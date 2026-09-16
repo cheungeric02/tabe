@@ -282,8 +282,8 @@ const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelect
 const MEALS=[["breakfast","Breakfast","🌅"],["lunch","Lunch","☀️"],["dinner","Dinner","🌙"],["snack","Snacks","🍎"],["alcohol","Alcohol","🍺"]];
 // quick-log presets shown under the Alcohol meal (approx calories)
 const ALCOHOL_PRESETS=[
-  {name:"Light Beer",cal:103,protein:1,portion:"1 bottle (12 oz)",emoji:"🍺"},
-  {name:"Draft Beer",cal:200,protein:2,portion:"1 pint (16 oz)",emoji:"🍻"},
+  {name:"Light Beer",cal:96,protein:1,portion:"1 bottle (12 oz)",emoji:"🍺"},   // Miller Lite / Michelob Ultra
+  {name:"Draft Beer",cal:190,protein:2,portion:"1 pint (16 oz)",emoji:"🍻"},    // Sapporo / Asahi, full-strength lager
   {name:"Liquor",cal:97,protein:0,portion:"1 shot (1.5 oz)",emoji:"🥃"}
 ];
 const todayStr=()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");};
