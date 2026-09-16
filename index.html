@@ -155,9 +155,16 @@ nav.tabs button.on .ni{background:var(--primary-container);color:var(--on-primar
 @keyframes up{from{transform:translateY(30px);opacity:.6}to{transform:translateY(0);opacity:1}}
 .sheet .grab{width:36px;height:4px;border-radius:999px;background:var(--outline-variant);margin:0 auto 14px}
 .sheet h2{font-size:19px;margin-bottom:4px}
+/* full-screen add flow */
+.sheet.full{max-width:520px;max-height:100dvh;height:100dvh;border-radius:0;padding:calc(12px + env(safe-area-inset-top)) 18px calc(16px + env(safe-area-inset-bottom));display:flex;flex-direction:column}
+.sheethead{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+.sheethead h2{flex:1;font-size:21px;margin:0}
+.xclose{width:40px;height:40px;border-radius:999px;display:grid;place-items:center;font-size:18px;font-weight:700;background:var(--sc);color:var(--on-surface-variant);flex:none}
+.xclose:active{background:var(--sc-high)}
 .favrow{display:flex;gap:8px;overflow-x:auto;padding:4px 0 8px;margin:0 -2px}
 .favchip{flex:none;background:var(--secondary-container);color:var(--on-secondary-container);border-radius:14px;padding:9px 13px;font-size:13px;font-weight:600;white-space:nowrap;max-width:170px;overflow:hidden;text-overflow:ellipsis}
 .searchres{max-height:250px;overflow:auto;margin:2px 0}
+.sheet.full .searchres{max-height:none;overflow:visible;flex:1 0 auto}
 .sr{display:flex;align-items:center;gap:10px;padding:10px;border-radius:14px;background:var(--sc);margin:6px 0;cursor:pointer}
 .sr:active{background:var(--sc-high)}
 .sr .srn{flex:1;min-width:0}
@@ -190,7 +197,7 @@ nav.tabs button.on .ni{background:var(--primary-container);color:var(--on-primar
 .manual>summary::-webkit-details-marker{display:none}
 .fdback{display:flex;align-items:center;gap:10px;margin-bottom:4px}
 .fdback .bk{width:40px;height:40px;border-radius:999px;display:grid;place-items:center;font-size:24px;background:var(--sc);flex:none}
-.fdback .nm{font-weight:700;font-size:16px;line-height:1.25;overflow:hidden}
+.fdback .nm{flex:1;font-weight:700;font-size:16px;line-height:1.25;overflow:hidden}
 .macrohero{display:flex;align-items:center;gap:14px;background:var(--primary-container);color:var(--on-primary-container);border-radius:22px;padding:18px 20px;margin:12px 0}
 .macrohero .cals{font-size:42px;font-weight:850;line-height:1}
 .macrohero .cLab{font-size:12px;font-weight:600;opacity:.8;margin-top:2px}
@@ -202,7 +209,8 @@ nav.tabs button.on .ni{background:var(--primary-container);color:var(--on-primar
 .idial .lab{font-size:11px;color:var(--on-surface-variant);font-weight:600}
 .qtywrap{background:var(--sc);border-radius:20px;padding:16px;margin:14px 0 4px}
 .qtyrow{display:flex;align-items:center;gap:12px}
-.qtyrow .qin{flex:1;text-align:center;font-size:28px;font-weight:800;border:1px solid var(--outline-variant);background:var(--sc-lowest);color:inherit;border-radius:14px;padding:10px}
+.qtyrow .qin{flex:1;min-width:0;text-align:center;font-size:28px;font-weight:800;border:1px solid var(--outline-variant);background:var(--sc-lowest);color:inherit;border-radius:14px;padding:10px}
+.qtyrow .qin::-webkit-outer-spin-button,.qtyrow .qin::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 .qtyrow .qin:focus{outline:2px solid var(--primary);border-color:transparent}
 .qstep{width:52px;height:52px;border-radius:16px;background:var(--sc-high);font-size:24px;display:grid;place-items:center;flex:none}
 .qstep:active{background:var(--primary-container);color:var(--on-primary-container)}
@@ -702,8 +710,7 @@ function openFoodSheet(meal,prefill){
   const p=prefill||{};
   const mealLbl=MEALS.find(m=>m[0]===meal)?.[1]||"meal";
   const openManual=!!(p.name||p.cal!=null);
-  $("#sheet").innerHTML=`<div class="grab"></div>
-    <h2>Add to ${mealLbl}</h2>
+  $("#sheet").innerHTML=`<div class="sheethead"><h2>Add to ${mealLbl}</h2><button class="xclose" id="fdClose" title="Close">✕</button></div>
     <div class="searchbar">
       <span class="sbico">🔍</span>
       <input id="fSearch" placeholder="Search for a food…" autocomplete="off">
@@ -724,7 +731,8 @@ function openFoodSheet(meal,prefill){
       <div class="checkrow"><input type="checkbox" id="fFav"><label for="fFav" style="margin:0">Save as favorite</label></div>
       <div class="btnrow" style="margin-top:2px"><button class="btn wide" id="fSave">Add</button></div>
     </details>`;
-  openScrim();
+  openScrim(true);
+  $("#fdClose").onclick=closeScrim;
   $$("[data-fav]").forEach(b=>b.onclick=()=>{ const f=S.favorites.find(x=>x.id===b.dataset.fav); if(f) logFood(meal,{name:f.name,cal:f.cal,protein:f.protein,portion:f.portion||""}); });
   $("#scanBtn").onclick=()=>startScan(meal);
   let stmr=null;
@@ -846,8 +854,7 @@ function openFoodDetail(meal,food,opts){
     unit=u; draw(); }
   function draw(){
     const m=calc(); const calPct=st.target>0?m.cal/st.target:0, protPct=st.protein>0?m.prot/st.protein:0;
-    $("#sheet").innerHTML=`<div class="grab"></div>
-      <div class="fdback"><button class="bk" id="fdBack">‹</button><div class="nm">${food.emoji} ${esc(food.name)}</div></div>
+    $("#sheet").innerHTML=`<div class="fdback"><button class="bk" id="fdBack">‹</button><div class="nm">${food.emoji} ${esc(food.name)}</div><button class="xclose" id="fdClose" title="Close">✕</button></div>
       <div class="macrohero">
         <div><div class="cals" id="mCal">${Math.round(m.cal)}</div><div class="cLab">Calories</div></div>
         <div style="flex:1"></div>
@@ -872,8 +879,9 @@ function openFoodDetail(meal,food,opts){
           :`${round(food.cal100,0)} kcal / 100 g`} · logs <b>${calc().portion}</b></div>
       </div>
       <div class="checkrow"><input type="checkbox" id="fdFav" ${favOn?"checked":""}><label for="fdFav" style="margin:0">Save as favorite</label></div>
-      <div class="btnrow"><button class="btn wide" id="fdAdd">Add ${Math.round(m.cal)} kcal to ${mealLbl}</button></div>`;
+      <div class="btnrow" style="margin-top:auto;padding-top:12px"><button class="btn wide" id="fdAdd">Add ${Math.round(m.cal)} kcal to ${mealLbl}</button></div>`;
     $("#fdBack").onclick=()=>openFoodSheet(meal);
+    $("#fdClose").onclick=closeScrim;
     $$("#uSeg button").forEach(b=>b.onclick=()=>{ if(!b.disabled) setUnit(b.dataset.u); });
     const qin=$("#qIn");
     qin.addEventListener("input",()=>{ q=Math.max(0,num(qin.value)); liveNums(); });
@@ -886,7 +894,7 @@ function openFoodDetail(meal,food,opts){
       if(favOn) addFav({name:food.name,cal:mm.cal,protein:mm.prot,meal,portion:mm.portion});
       closeScrim(); };
   }
-  openScrim(); draw();
+  openScrim(true); draw();
 }
 function quickAddFood(meal,f){
   const useServ=f.calServ>0;
@@ -1028,8 +1036,8 @@ const csv=s=>`"${String(s||"").replace(/"/g,'""')}"`;
 
 /* ============================ misc UI ============================ */
 function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
-function openScrim(){ $("#scrim").classList.add("open"); }
-function closeScrim(){ $("#scrim").classList.remove("open"); stopScan(); }
+function openScrim(full){ $("#scrim").classList.add("open"); $("#sheet").classList.toggle("full",!!full); }
+function closeScrim(){ $("#scrim").classList.remove("open"); $("#sheet").classList.remove("full"); stopScan(); }
 $("#scrim").addEventListener("click",e=>{ if(e.target===$("#scrim")) closeScrim(); });
 function toast(m){ showSnack(m,null); }
 function showUndo(m,fn){ showSnack(m,fn); }
