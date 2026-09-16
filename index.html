@@ -331,11 +331,19 @@ function load(){
   try{const raw=localStorage.getItem("tabe_state");if(raw)S=normalize(JSON.parse(raw));}catch(e){S=blank();}
 }
 window.__tbData=()=>S;
-window.__tbApplyRemote=obj=>{
+window.__tbApplyRemote=(obj,adopt)=>{
   const r=normalize(obj);
+  if(adopt){ // joining a key: inherit whatever is already in the cloud, never push local over it
+    try{ safetyBackup(); }catch(e){}
+    S=r; try{localStorage.setItem("tabe_state",JSON.stringify(S));}catch(e){} render(); return; }
   if((r.updatedAt||0)>(S.updatedAt||0)){ S=r; try{localStorage.setItem("tabe_state",JSON.stringify(S));}catch(e){} render(); }
   else if((r.updatedAt||0)<(S.updatedAt||0)){ if(window.__tbCloud) window.__tbCloud.push(S); }
 };
+// keep a recoverable local snapshot before a join overwrites this device's data
+function safetyBackup(){ try{ const key="pre-join "+new Date().toISOString().slice(0,19).replace("T"," ");
+  const all=JSON.parse(localStorage.getItem("tabe_backups")||"{}"); all[key]=JSON.stringify(S);
+  const ks=Object.keys(all).sort(); while(ks.length>8){delete all[ks.shift()];}
+  localStorage.setItem("tabe_backups",JSON.stringify(all)); }catch(e){} }
 
 /* ---- day helpers ---- */
 function day(d){ if(!S.days[d]) S.days[d]={entries:[],note:""}; if(!Array.isArray(S.days[d].entries)) S.days[d].entries=[]; return S.days[d]; }
@@ -709,7 +717,7 @@ function renderSettings(){
   $("#sReminder").onchange=e=>{ S.settings.reminder=e.target.checked; save(); if(e.target.checked) reqReminder(); };
   $("#sTheme").onclick=toggleTheme;
   $("#openBackups2").onclick=openBackups;
-  $("#syncOn").onclick=()=>{ const k=$("#sSyncKey").value.trim(); if(!k){toast("Enter a key first");return;} setSyncKey(k); if(window.__tbCloud) window.__tbCloud.connect(k); };
+  $("#syncOn").onclick=()=>{ const k=$("#sSyncKey").value.trim(); if(!k){toast("Enter a key first");return;} setSyncKey(k); if(window.__tbCloud) window.__tbCloud.connect(k,true); };
   $("#syncOff").onclick=()=>{ setSyncKey(""); if(window.__tbCloud) window.__tbCloud.disconnect(); };
   if(window.__tbCloudStatus) window.__tbCloudStatus(lastCloudMsg,lastCloudState);
 }
@@ -1117,13 +1125,16 @@ if("serviceWorker" in navigator){ addEventListener("load",()=>navigator.serviceW
     const app=initializeApp(cfg); const db=getDatabase(app); let curRef=null, curKey="", lastSent="";
     window.__tbCloud={
       ready:true, connected:false,
-      connect(key){ const safe=sanitize(key); if(!safe){status("Enter a key to turn on sync.","err");return;}
-        if(curRef) off(curRef); curKey=safe; curRef=ref(db,"tabe/"+safe+"/blob"); this.connected=true; lastSent=""; status("Connecting…","");
-        onValue(curRef, snap=>{ this.connected=true; const v=snap.val();
+      connect(key,join){ const safe=sanitize(key); if(!safe){status("Enter a key to turn on sync.","err");return;}
+        if(curRef) off(curRef); curKey=safe; curRef=ref(db,"tabe/"+safe+"/blob"); this.connected=true; lastSent=""; this._join=!!join; status("Connecting…","");
+        onValue(curRef, snap=>{ this.connected=true; const v=snap.val(); const joining=this._join; this._join=false;
           if(v){ if(v===lastSent){ status("Synced ✓","on"); return; } lastSent=v;
-            try{ if(window.__tbApplyRemote) window.__tbApplyRemote(JSON.parse(v)); }catch(e){}
-            status("Synced ✓","on");
-          }else{ status("Synced ✓","on"); const d=window.__tbData?window.__tbData():null; if(d) this.push(d); }
+            // on a manual join, adopt the cloud data (inherit) instead of newest-wins
+            try{ if(window.__tbApplyRemote) window.__tbApplyRemote(JSON.parse(v), joining); }catch(e){}
+            status(joining?"Loaded your cloud data ✓":"Synced ✓","on");
+          }else{ // key has no cloud data yet — safe to seed it with this device
+            status(joining?"New key — uploaded this device’s data ✓":"Synced ✓","on");
+            const d=window.__tbData?window.__tbData():null; if(d) this.push(d); }
         }, err=>{ this.connected=false; status("Sync error — check Firebase rules.","err"); });
       },
       disconnect(){ if(curRef) off(curRef); curRef=null; curKey=""; this.connected=false; lastSent=""; status("Off — this device only.",""); },
