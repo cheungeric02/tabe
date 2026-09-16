@@ -100,7 +100,6 @@ header{position:sticky;top:0;z-index:30;background:color-mix(in srgb,var(--surfa
 .meal.droptarget{background:color-mix(in srgb,var(--primary-container) 55%,transparent);outline:2px dashed var(--primary);outline-offset:3px;border-radius:14px}
 .dragghost{border-radius:16px!important;box-shadow:0 10px 28px rgba(0,0,0,.32);opacity:.95}
 .empty{color:var(--on-surface-variant);font-size:13.5px;padding:8px 4px;font-style:italic}
-.note{width:100%;border:1px solid var(--outline-variant);background:var(--sc-lowest);color:inherit;border-radius:16px;padding:12px;resize:vertical;min-height:52px;margin-top:6px}
 /* buttons */
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:12px 20px;border-radius:999px;font-weight:700;font-size:15px;background:var(--primary);color:var(--on-primary);position:relative;overflow:hidden}
 .btn.tonal{background:var(--secondary-container);color:var(--on-secondary-container)}
@@ -477,12 +476,8 @@ function renderToday(){
       <button class="x" data-del="${e.id}" title="Delete">✕</button></div>`; });
     h+=`</div>`;
   }
-  // note
-  h+=`<div class="card flat"><h3>Note for ${curDate===todayStr()?"today":fmtD(curDate)}</h3>
-    <textarea class="note" id="dayNote" placeholder="How did eating go? cravings, workouts, eating out…">${esc(dd.note||"")}</textarea></div>`;
 
   $("#main").innerHTML=h;
-  $("#dayNote").addEventListener("change",e=>{ day(curDate).note=e.target.value; save(); });
   $$("[data-addmeal]").forEach(b=>b.onclick=()=>openFoodSheet(b.dataset.addmeal));
   $$("[data-alco]").forEach(b=>b.onclick=()=>{ const p=ALCOHOL_PRESETS[+b.dataset.alco]; logFood("alcohol",{name:p.name,cal:p.cal,protein:p.protein,portion:p.portion}); });
   $$("[data-del]").forEach(b=>b.onclick=()=>delEntry(b.dataset.del));

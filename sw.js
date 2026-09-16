@@ -1,5 +1,5 @@
 /* Tabe service worker — app-shell cache, network-first for updates */
-const CACHE = 'tabe-v14';
+const CACHE = 'tabe-v15';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon.svg'];
 
 self.addEventListener('install', e => {
