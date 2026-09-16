@@ -167,8 +167,9 @@ nav.tabs button.on .ni{background:var(--primary-container);color:var(--on-primar
 .sheethead h2{flex:1;font-size:21px;margin:0}
 .xclose{width:40px;height:40px;border-radius:999px;display:grid;place-items:center;font-size:18px;font-weight:700;background:var(--sc);color:var(--on-surface-variant);flex:none}
 .xclose:active{background:var(--sc-high)}
-.favrow{display:flex;gap:8px;overflow-x:auto;padding:4px 0 8px;margin:0 -2px}
-.favchip{flex:none;background:var(--secondary-container);color:var(--on-secondary-container);border-radius:14px;padding:9px 13px;font-size:13px;font-weight:600;white-space:nowrap;max-width:170px;overflow:hidden;text-overflow:ellipsis}
+.favrow{display:flex;gap:8px;overflow-x:auto;overflow-y:visible;padding:6px 2px 14px;margin:0 -2px}
+.favchip{flex:none;display:inline-flex;align-items:center;min-height:40px;background:var(--sc-high);color:var(--on-surface);border:1.5px solid var(--secondary);border-radius:14px;padding:8px 14px;font-size:13px;font-weight:600;white-space:nowrap;max-width:190px;overflow:hidden;text-overflow:ellipsis}
+.favchip:active{background:var(--secondary-container);color:var(--on-secondary-container)}
 .searchres{max-height:250px;overflow:auto;margin:2px 0}
 .sheet.full .searchres{max-height:none;overflow:visible}
 .reclabel{margin-top:8px}
