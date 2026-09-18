@@ -132,12 +132,18 @@ header{position:sticky;top:0;z-index:30;background:color-mix(in srgb,var(--surfa
 .wsub{color:var(--on-surface-variant);font-size:14px;margin-top:6px}
 .rate{font-weight:750}
 .rate.down{color:var(--good)} .rate.up{color:var(--tertiary)}
+.skipcard{display:flex;align-items:center;gap:12px}
+.skipcard .skiptxt{flex:1;min-width:0}
+.skipcard .skiptxt .tiny{opacity:.7;margin-top:2px}
+.skipcard.on{border:1px solid var(--secondary)}
+.skipcard .btn{flex:none}
 /* heatmap */
 .hm{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
 .hm .d{aspect-ratio:1;border-radius:8px;background:var(--sc);display:grid;place-items:center;font-size:11px;color:var(--on-surface-variant)}
 .hm .d.under{background:var(--good-c);color:var(--good)}
 .hm .d.over{background:var(--bad-c);color:var(--bad)}
 .hm .d.none{opacity:.35}
+.hm .d.skip{background:repeating-linear-gradient(45deg,var(--sc),var(--sc) 3px,var(--sc-high) 3px,var(--sc-high) 6px);color:var(--on-surface-variant);opacity:.7}
 .hm .d.today{outline:2px solid var(--primary)}
 .hmhead{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin-bottom:5px}
 .hmhead span{text-align:center;font-size:11px;color:var(--on-surface-variant);font-weight:600}
@@ -349,6 +355,8 @@ function safetyBackup(){ try{ const key="pre-join "+new Date().toISOString().sli
 /* ---- day helpers ---- */
 function day(d){ if(!S.days[d]) S.days[d]={entries:[],note:""}; if(!Array.isArray(S.days[d].entries)) S.days[d].entries=[]; return S.days[d]; }
 const dayTotal=d=>(S.days[d]?.entries||[]).reduce((a,e)=>a+num(e.cal),0);
+const daySkipped=d=>!!(S.days[d]&&S.days[d].skip);
+const dayCounts=d=>dayTotal(d)>0&&!daySkipped(d);
 const dayProtein=d=>(S.days[d]?.entries||[]).reduce((a,e)=>a+num(e.protein),0);
 
 /* ============================ Calorie logic ============================ */
@@ -400,9 +408,9 @@ function tdeeEstimate(){
   const win=arr.filter(p=>p.date>=startCut); if(win.length<2) return null;
   const first=win[0]; const span=daysBetween(first.date,end.date); if(span<10) return null;
   // average intake over logged days within [first.date, end.date]
-  let sum=0,logged=0;
-  for(let d=first.date; d<=end.date; d=addDays(d,1)){ const t=dayTotal(d); if(t>0){sum+=t;logged++;} }
-  const totalDays=span+1; if(logged<Math.ceil(totalDays*0.6)||logged<7) return null;
+  let sum=0,logged=0,skipped=0;
+  for(let d=first.date; d<=end.date; d=addDays(d,1)){ if(daySkipped(d)){skipped++;continue;} const t=dayTotal(d); if(t>0){sum+=t;logged++;} }
+  const totalDays=span+1-skipped; if(logged<Math.ceil(totalDays*0.6)||logged<7) return null;
   const avgIntake=sum/logged;
   const deltaW=end.w-first.w;              // lb over span days
   const surplusPerDay=deltaW*3500/span;    // + means surplus
@@ -429,7 +437,7 @@ function syncDateNav(){
 
 /* ---------- TODAY ---------- */
 function renderToday(){
-  const st=S.settings, total=dayTotal(curDate), prot=dayProtein(curDate);
+  const st=S.settings, total=dayTotal(curDate), prot=dayProtein(curDate), skipped=daySkipped(curDate);
   const status=ringStatus(total,st.target,st.maintenance,st.goalMode);
   const frac=st.target>0?Math.min(total/st.target,1):0;
   const C=2*Math.PI*66, dash=C*frac;
@@ -477,7 +485,15 @@ function renderToday(){
     h+=`</div>`;
   }
 
+  // exclude-from-stats toggle
+  h+=`<div class="card flat skipcard${skipped?" on":""}">
+      <div class="skiptxt"><b>${skipped?"Excluded from stats":"Counts toward stats"}</b>
+        <div class="tiny">${skipped?"This day won't affect your streak, averages, on-target count or TDEE.":"Turn off if you didn't fully log this day."}</div></div>
+      <button class="btn ${skipped?"tonal":"outline"}" id="skipDay">${skipped?"Include day":"Exclude day"}</button>
+    </div>`;
+
   $("#main").innerHTML=h;
+  const sk=$("#skipDay"); if(sk) sk.onclick=()=>{ const dref=day(curDate); dref.skip=!dref.skip; save(); toast(dref.skip?"Day excluded from stats":"Day counts toward stats"); renderToday(); };
   $$("[data-addmeal]").forEach(b=>b.onclick=()=>openFoodSheet(b.dataset.addmeal));
   $$("[data-alco]").forEach(b=>b.onclick=()=>{ const p=ALCOHOL_PRESETS[+b.dataset.alco]; logFood("alcohol",{name:p.name,cal:p.cal,protein:p.protein,portion:p.portion}); });
   $$("[data-del]").forEach(b=>b.onclick=()=>delEntry(b.dataset.del));
@@ -600,12 +616,12 @@ function renderStats(){
   const t=tdeeEstimate();
   const st=S.settings;
   // streak: consecutive days up to today with any food logged
-  let streak=0; for(let d=todayStr();;d=addDays(d,-1)){ if(dayTotal(d)>0)streak++; else break; if(streak>999)break; }
-  // days under target in last 30 (cut) / near (else) among logged days
+  let streak=0,sguard=0; for(let d=todayStr();sguard<1000;d=addDays(d,-1),sguard++){ if(daySkipped(d))continue; if(dayTotal(d)>0)streak++; else break; }
+  // days under target in last 30 (cut) / near (else) among logged days (skipped days excluded)
   let logged=0,good=0;
-  for(let i=0;i<30;i++){ const d=addDays(todayStr(),-i); const tot=dayTotal(d); if(tot>0){logged++; if(ringStatus(tot,st.target,st.maintenance,st.goalMode)==="good")good++;} }
+  for(let i=0;i<30;i++){ const d=addDays(todayStr(),-i); if(daySkipped(d))continue; const tot=dayTotal(d); if(tot>0){logged++; if(ringStatus(tot,st.target,st.maintenance,st.goalMode)==="good")good++;} }
   // weekly energy balance over last 7 logged days
-  let wsum=0,wdays=0; for(let i=0;i<7;i++){ const d=addDays(todayStr(),-i); const tot=dayTotal(d); if(tot>0){wsum+=(tot-st.maintenance);wdays++;} }
+  let wsum=0,wdays=0; for(let i=0;i<7;i++){ const d=addDays(todayStr(),-i); if(daySkipped(d))continue; const tot=dayTotal(d); if(tot>0){wsum+=(tot-st.maintenance);wdays++;} }
   const perWkLb=wdays?round((wsum/wdays)*7/3500,2):null;
 
   let h="";
@@ -624,7 +640,7 @@ function renderStats(){
     <div class="stat"><div class="v">${streak}🔥</div><div class="l">Logging streak (days)</div></div>
     <div class="stat"><div class="v">${good}<span style="font-size:15px">/${logged}</span></div><div class="l">On-target days (30d logged)</div></div>
     <div class="stat"><div class="v">${perWkLb==null?"—":(perWkLb>0?"+":"")+perWkLb}</div><div class="l">Projected lb/wk (from intake)</div></div>
-    <div class="stat"><div class="v">${logged?Math.round([...Array(30)].reduce((a,_,i)=>{const tot=dayTotal(addDays(todayStr(),-i));return tot>0?a+tot:a;},0)/logged):"—"}</div><div class="l">Avg intake (logged, 30d)</div></div>
+    <div class="stat"><div class="v">${logged?Math.round([...Array(30)].reduce((a,_,i)=>{const d=addDays(todayStr(),-i);return dayCounts(d)?a+dayTotal(d):a;},0)/logged):"—"}</div><div class="l">Avg intake (logged, 30d)</div></div>
   </div>`;
 
   // heatmap current month
@@ -648,10 +664,11 @@ function heatmap(){
   for(let i=0;i<start;i++) h+=`<div class="d none"></div>`;
   for(let dnum=1;dnum<=dim;dnum++){
     const ds=y+"-"+String(m+1).padStart(2,"0")+"-"+String(dnum).padStart(2,"0");
-    const tot=dayTotal(ds); let cls="none";
-    if(tot>0) cls=ringStatus(tot,st.target,st.maintenance,st.goalMode)==="good"?"under":"over";
+    const tot=dayTotal(ds); const skip=daySkipped(ds); let cls="none";
+    if(skip) cls="skip";
+    else if(tot>0) cls=ringStatus(tot,st.target,st.maintenance,st.goalMode)==="good"?"under":"over";
     if(ds===todayStr()) cls+=" today";
-    h+=`<div class="d ${cls}" title="${ds}${tot>0?': '+Math.round(tot)+' kcal':''}">${dnum}</div>`;
+    h+=`<div class="d ${cls}" title="${ds}${skip?': excluded from stats':tot>0?': '+Math.round(tot)+' kcal':''}">${dnum}</div>`;
   }
   return h+`</div>`;
 }
