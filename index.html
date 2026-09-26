@@ -137,6 +137,18 @@ header{position:sticky;top:0;z-index:30;background:color-mix(in srgb,var(--surfa
 .skipcard .skiptxt .tiny{opacity:.7;margin-top:2px}
 .skipcard.on{border:1px solid var(--secondary)}
 .skipcard .btn{flex:none}
+/* patch notes */
+.pnwrap{max-height:60vh;overflow:auto;margin:2px 0 4px}
+.pnote{background:var(--sc);border:1px solid var(--outline-variant);border-radius:16px;padding:12px 14px;margin-bottom:10px}
+.pnote.cur{background:var(--primary-container);color:var(--on-primary-container);border-color:var(--primary)}
+.pnhead{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px}
+.pnv{font-weight:800;font-size:14px}
+.pntitle{font-weight:700;font-size:14px;flex:1;min-width:80px}
+.pncur{font-size:10px;font-weight:800;letter-spacing:.3px;background:var(--primary);color:var(--on-primary);border-radius:999px;padding:2px 9px;text-transform:uppercase}
+.pndate{font-size:11px;opacity:.7;font-weight:600}
+.pnlist{margin:0;padding-left:18px}
+.pnlist li{font-size:13px;line-height:1.45;margin:3px 0}
+.pnver{font-size:12px;opacity:.7;margin-top:10px}
 /* heatmap */
 .hm{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
 .hm .d{aspect-ratio:1;border-radius:8px;background:var(--sc);display:grid;place-items:center;font-size:11px;color:var(--on-surface-variant)}
@@ -674,6 +686,69 @@ function heatmap(){
 }
 
 /* ---------- SETTINGS ---------- */
+/* ============================ Patch notes / What's New ============================ */
+// APP_VERSION MUST equal the sw.js cache number (tabe-v<N>) and be bumped together.
+const APP_VERSION=17;
+const PATCH_NOTES=[
+  { v:17, date:"2026-09-21", title:"Patch notes & What's New", notes:[
+    "Added a Patch Notes list in Settings so you can see every update.",
+    "Added a one-time “What’s New” popup that shows what changed since you last opened Tabe."]},
+  { v:16, date:"2026-09-17", title:"Skip incomplete days", notes:[
+    "Added a toggle on the Today screen to exclude a day from your stats.",
+    "Excluded days no longer affect your streak, averages, on-target count or estimated maintenance."]},
+  { v:15, date:"2026-09-16", title:"Cleaner Today screen", notes:[
+    "Removed the per-day “how did eating go” note."]},
+  { v:14, date:"2026-09-16", title:"Favorites fixes", notes:[
+    "Fixed favorite chips that could show as empty pills on some phones.",
+    "Favorites now wrap onto multiple lines instead of scrolling sideways.",
+    "Moved Recent foods higher in the add-food screen."]},
+  { v:13, date:"2026-09-16", title:"Smaller calorie card", notes:[
+    "Shrank the Today calorie ring and removed the “under maintenance” pill.",
+    "Earlier tweaks to make favorite chips more legible."]},
+  { v:10, date:"2026-09-16", title:"Weigh in on any day", notes:[
+    "Added a date picker to the weigh-in sheet so you can log or move a weight to any day.",
+    "Turning on sync now adopts your existing cloud data instead of overwriting it."]},
+  { v:7, date:"2026-09-16", title:"Alcohol & Recent foods", notes:[
+    "Added an Alcohol meal category with quick-log presets.",
+    "Added a Recent foods section to the add-food screen."]},
+  { v:4, date:"2026-09-16", title:"MacroFactor-style add flow", notes:[
+    "Redesigned the add-food flow with serving/grams scaling.",
+    "Made the add-food screen full-screen with an X to close."]},
+  { v:2, date:"2026-09-15", title:"Search & drag", notes:[
+    "Added food-database search (Open Food Facts + optional USDA key).",
+    "Drag food entries between meals; the weigh-in button now lives on the Weight tab."]},
+  { v:1, date:"2026-09-15", title:"First release", notes:[
+    "Tabe launches: manual calorie tracking with a daily ring, meals and favorites, plus weight-trend tracking."]},
+];
+function patchEntryHTML(e){
+  const cur=e.v===APP_VERSION;
+  return `<div class="pnote${cur?" cur":""}">
+    <div class="pnhead"><span class="pnv">v${e.v}</span><span class="pntitle">${esc(e.title)}</span>${cur?`<span class="pncur">Current</span>`:""}<span class="pndate">${esc(e.date)}</span></div>
+    <ul class="pnlist">${e.notes.map(n=>`<li>${esc(n)}</li>`).join("")}</ul></div>`;
+}
+function showWhatsNew(entries){
+  $("#sheet").innerHTML=`<div class="grab"></div>
+    <h2>✨ What’s New</h2>
+    <div class="pnwrap">${entries.map(patchEntryHTML).join("")}</div>
+    <div class="btnrow" style="margin-top:6px"><button class="btn wide" id="pnClose">Got it</button></div>`;
+  openScrim();
+  const b=$("#pnClose"); if(b) b.onclick=closeScrim;
+}
+function checkWhatsNew(){
+  let hadState=false, lastSeen=null;
+  try{ hadState=!!localStorage.getItem("tabe_state"); }catch(e){}
+  try{ const v=localStorage.getItem("tabe_lastSeenVer"); if(v!=null&&v!=="") lastSeen=parseInt(v,10); }catch(e){}
+  // brand-new install (no saved data): record silently, no popup
+  if(!hadState){ try{localStorage.setItem("tabe_lastSeenVer",String(APP_VERSION));}catch(e){} return; }
+  let toShow=null;
+  if(lastSeen==null||isNaN(lastSeen)) toShow=[PATCH_NOTES[0]];           // existing user, pre-feature: latest only
+  else if(lastSeen<APP_VERSION) toShow=PATCH_NOTES.filter(e=>e.v>lastSeen); // returning user: the delta
+  else return;                                                            // already up to date
+  // record now so the popup shows exactly once, even if closed immediately
+  try{localStorage.setItem("tabe_lastSeenVer",String(APP_VERSION));}catch(e){}
+  if(toShow&&toShow.length) showWhatsNew(toShow);
+}
+
 function renderSettings(){
   const st=S.settings;
   let h=`<div class="card"><h3>Your numbers</h3>
@@ -711,7 +786,12 @@ function renderSettings(){
       <button class="btn outline" id="sTheme">Toggle theme</button>
       <button class="btn tonal" id="openBackups2">🛟 Backups & restore</button>
     </div>
-    <div class="tiny" style="margin-top:14px">Tabe · manual calorie & weight tracker · data in bon-echo Firebase.</div>
+    <div class="tiny" style="margin-top:14px">Tabe · manual calorie &amp; weight tracker · data in bon-echo Firebase.</div>
+  </div>`;
+
+  h+=`<div class="card flat"><h3>Patch Notes</h3>
+    <div class="pnwrap">${PATCH_NOTES.map(patchEntryHTML).join("")}</div>
+    <div class="pnver">You’re on <b>v${APP_VERSION}</b>.</div>
   </div>`;
 
   $("#main").innerHTML=h;
@@ -1133,6 +1213,7 @@ $("#dToday").onclick=()=>{ curDate=todayStr(); renderToday(); syncDateNav(); };
 load();
 if(getSyncKey()) { /* cloud module will auto-connect */ }
 render();
+try{ checkWhatsNew(); }catch(e){}
 // daily auto-backup once per day
 try{ const lb=localStorage.getItem("tabe_lastbak")||""; if(lb!==todayStr()){ setTimeout(()=>{ doBackup(); localStorage.setItem("tabe_lastbak",todayStr()); },4000); } }catch(e){}
 if("serviceWorker" in navigator){ addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(()=>{})); }
