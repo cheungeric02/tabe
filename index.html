@@ -317,7 +317,7 @@ const round=(n,p=0)=>{const f=10**p;return Math.round(n*f)/f;};
 
 /* ---- default + state ---- */
 function blank(){return{
-  settings:{maintenance:2200,target:1800,protein:150,goalWeight:180,goalMode:"cut",unit:"lb",reminder:false,usdaKey:""},
+  settings:{maintenance:2200,target:1800,protein:150,goalWeight:180,goalMode:"cut",unit:"lb",reminder:false,usdaKey:"",foodTracking:false},
   days:{},        // date -> {entries:[{id,name,cal,protein,meal,ts}], note:""}
   weights:{},     // date -> {w:Number, ts}
   favorites:[],   // {id,name,cal,protein,meal}
@@ -370,6 +370,8 @@ const dayTotal=d=>(S.days[d]?.entries||[]).reduce((a,e)=>a+num(e.cal),0);
 const daySkipped=d=>!!(S.days[d]&&S.days[d].skip);
 const dayCounts=d=>dayTotal(d)>0&&!daySkipped(d);
 const dayProtein=d=>(S.days[d]?.entries||[]).reduce((a,e)=>a+num(e.protein),0);
+// food/calorie tracking can be switched off in Settings — hides the UI only, all food data is kept
+const foodOn=()=>!!S.settings.foodTracking;
 
 /* ============================ Calorie logic ============================ */
 function ringStatus(total,target,maint,mode){
@@ -432,12 +434,15 @@ function tdeeEstimate(){
 
 /* ============================ Rendering ============================ */
 function render(){
+  if(!foodOn()&&view==="today") view="weight";
+  $('nav.tabs button[data-tab="today"]').style.display=foodOn()?"":"none";
   syncDateNav();
   if(view==="today") renderToday();
   else if(view==="weight") renderWeight();
   else if(view==="stats") renderStats();
   else renderSettings();
   $$("nav.tabs button").forEach(b=>b.classList.toggle("on",b.dataset.tab===view));
+  $("#dateNav").style.display=foodOn()?"":"none";
   $("#dateNav").style.visibility=view==="today"?"visible":"hidden";
   $("#fabWeigh").style.display=view==="weight"?"flex":"none";
 }
@@ -625,6 +630,7 @@ function drawChart(rangeDays){
 
 /* ---------- STATS ---------- */
 function renderStats(){
+  if(!foodOn()) return renderWeightStats();
   const t=tdeeEstimate();
   const st=S.settings;
   // streak: consecutive days up to today with any food logged
@@ -668,6 +674,45 @@ function renderStats(){
   const at=$("#applyTdee"); if(at) at.onclick=()=>{ S.settings.maintenance=t.estMaint; save(); toast("Maintenance updated to "+t.estMaint); render(); };
   $("#expFood").onclick=exportFood; $("#expWeight").onclick=exportWeight; $("#openBackups").onclick=openBackups;
 }
+/* weight-only stats, used while food tracking is switched off */
+function renderWeightStats(){
+  const a=weightAnalysis();
+  const fmtChg=v=>v==null?"—":(v>0?"+":"")+round(v,1);
+  // trend change over the last n days (trend at latest vs trend on/before latest-n)
+  const chg=n=>{ if(!a) return null; const cut=addDays(a.latest.date,-n); let base=null;
+    for(const p of a.tr){ if(p.date<=cut) base=p; else break; } return base?a.latestTrend-base.w:null; };
+  let recent=0; for(let i=0;i<30;i++){ if(S.weights[addDays(todayStr(),-i)]) recent++; }
+  // weigh-in streak: consecutive days ending today (or yesterday, if not weighed yet today)
+  let wstreak=0,d=S.weights[todayStr()]?todayStr():addDays(todayStr(),-1);
+  while(S.weights[d]&&wstreak<3650){ wstreak++; d=addDays(d,-1); }
+  let h=`<div class="statgrid">
+    <div class="stat"><div class="v">${fmtChg(chg(7))}</div><div class="l">Trend change, 7 days (lb)</div></div>
+    <div class="stat"><div class="v">${fmtChg(chg(30))}</div><div class="l">Trend change, 30 days (lb)</div></div>
+    <div class="stat"><div class="v">${a?fmtChg(a.latestTrend-a.start.w):"—"}</div><div class="l">Since ${a?fmtD(a.start.date):"start"} (lb)</div></div>
+    <div class="stat"><div class="v">${a&&a.goal>0?round(Math.abs(a.latestTrend-a.goal),1):"—"}</div><div class="l">lb to goal${a&&a.goal>0?" ("+a.goal+")":""}</div></div>
+    <div class="stat"><div class="v">${wstreak}🔥</div><div class="l">Weigh-in streak (days)</div></div>
+    <div class="stat"><div class="v">${recent}<span style="font-size:15px">/30</span></div><div class="l">Weigh-ins, last 30 days</div></div>
+  </div>`;
+  h+=`<div class="card"><h3>Weigh-ins this month</h3>${weighMap()}</div>`;
+  h+=`<div class="card flat"><h3>Data</h3><div class="btnrow">
+    <button class="btn outline" id="expWeight">⬇︎ Export weight CSV</button>
+    <button class="btn tonal" id="openBackups">🛟 Backups & restore</button>
+  </div></div>`;
+  $("#main").innerHTML=h;
+  $("#expWeight").onclick=exportWeight; $("#openBackups").onclick=openBackups;
+}
+function weighMap(){
+  const now=new Date(), y=now.getFullYear(), m=now.getMonth();
+  const start=new Date(y,m,1).getDay(), dim=new Date(y,m+1,0).getDate();
+  let h=`<div class="hmhead">`+["S","M","T","W","T","F","S"].map(x=>`<span>${x}</span>`).join("")+`</div><div class="hm">`;
+  for(let i=0;i<start;i++) h+=`<div class="d none"></div>`;
+  for(let dnum=1;dnum<=dim;dnum++){
+    const ds=y+"-"+String(m+1).padStart(2,"0")+"-"+String(dnum).padStart(2,"0");
+    const w=S.weights[ds]; let cls=w?"under":"none"; if(ds===todayStr()) cls+=" today";
+    h+=`<div class="d ${cls}" title="${ds}${w?': '+round(num(w.w),1)+' lb':''}">${dnum}</div>`;
+  }
+  return h+`</div>`;
+}
 function heatmap(){
   const now=new Date(), y=now.getFullYear(), m=now.getMonth();
   const first=new Date(y,m,1), start=first.getDay(), dim=new Date(y,m+1,0).getDate();
@@ -688,8 +733,12 @@ function heatmap(){
 /* ---------- SETTINGS ---------- */
 /* ============================ Patch notes / What's New ============================ */
 // APP_VERSION MUST equal the sw.js cache number (tabe-v<N>) and be bumped together.
-const APP_VERSION=17;
+const APP_VERSION=18;
 const PATCH_NOTES=[
+  { v:18, date:"2026-09-26", title:"Weight-first Tabe", notes:[
+    "Tabe is now weight-first: food and calorie tracking are hidden, and Weight is the home screen.",
+    "Stats now show weight numbers: 7- and 30-day trend change, distance to goal, weigh-in streak and a weigh-in calendar.",
+    "Your food logs and favorites are kept. Turn them back on in Settings → Food tracking."]},
   { v:17, date:"2026-09-21", title:"Patch notes & What's New", notes:[
     "Added a Patch Notes list in Settings so you can see every update.",
     "Added a one-time “What’s New” popup that shows what changed since you last opened Tabe."]},
@@ -751,7 +800,9 @@ function checkWhatsNew(){
 
 function renderSettings(){
   const st=S.settings;
-  let h=`<div class="card"><h3>Your numbers</h3>
+  let h=!foodOn()?`<div class="card"><h3>Your goal</h3>
+    <div class="field"><label>Goal weight (lb)</label><input class="inp" type="number" inputmode="decimal" id="sGoal" value="${st.goalWeight}"></div>
+  </div>`:`<div class="card"><h3>Your numbers</h3>
     <div class="grid2">
       <div class="field"><label>Maintenance kcal</label><input class="inp" type="number" inputmode="numeric" id="sMaint" value="${st.maintenance}"></div>
       <div class="field"><label>Daily target kcal</label><input class="inp" type="number" inputmode="numeric" id="sTarget" value="${st.target}"></div>
@@ -775,7 +826,12 @@ function renderSettings(){
     <div class="status" id="cloudStatus"></div>
   </div>`;
 
-  h+=`<div class="card flat"><h3>Food database</h3>
+  h+=`<div class="card flat"><h3>Food tracking</h3>
+    <div class="checkrow"><input type="checkbox" id="sFood" ${foodOn()?"checked":""}><label for="sFood" style="margin:0">Track food &amp; calories</label></div>
+    <div class="tiny" style="margin-top:6px">${foodOn()?"Turn off to make Tabe weight-only. Your food logs, favorites and calorie settings are kept.":"Off — Tabe is weight-only. Your past food logs and favorites are kept, and come back if you turn this on."}</div>
+  </div>`;
+
+  if(foodOn()) h+=`<div class="card flat"><h3>Food database</h3>
     <div class="tiny" style="margin-bottom:8px">Search uses <b>Open Food Facts</b> (packaged foods) — free, no setup. Add a free <b>USDA FoodData Central</b> key for better whole-food results: get one in ~2 min at <a href="https://fdc.nal.usda.gov/api-key-signup.html" target="_blank" rel="noopener" style="color:var(--primary)">fdc.nal.usda.gov/api-key-signup.html</a>, then paste it here.</div>
     <div class="field"><label>USDA API key (optional)</label><input class="inp" id="sUsda" placeholder="paste key…" value="${esc(st.usdaKey||"")}"></div>
   </div>`;
@@ -786,7 +842,7 @@ function renderSettings(){
       <button class="btn outline" id="sTheme">Toggle theme</button>
       <button class="btn tonal" id="openBackups2">🛟 Backups & restore</button>
     </div>
-    <div class="tiny" style="margin-top:14px">Tabe · manual calorie &amp; weight tracker · data in bon-echo Firebase.</div>
+    <div class="tiny" style="margin-top:14px">Tabe · ${foodOn()?"manual calorie &amp; weight tracker":"weight tracker"} · data in bon-echo Firebase.</div>
   </div>`;
 
   h+=`<div class="card flat"><h3>Patch Notes</h3>
@@ -795,15 +851,18 @@ function renderSettings(){
   </div>`;
 
   $("#main").innerHTML=h;
-  const modeHint=()=>{ const m=S.settings.goalMode; $("#modeHint").textContent={
-    cut:"Deficit: green when at/under target, red once over maintenance.",
-    maintain:"Green when near maintenance; the goal-weight line stays flat.",
-    bulk:"Surplus: green when you hit your target; red if you fall below maintenance."}[m]; };
-  modeHint();
-  const bind=(id,key,int)=>{ $("#"+id).addEventListener("change",e=>{ S.settings[key]=int?Math.round(num(e.target.value)):num(e.target.value); save(); }); };
+  const bind=(id,key,int)=>{ const el=$("#"+id); if(el) el.addEventListener("change",e=>{ S.settings[key]=int?Math.round(num(e.target.value)):num(e.target.value); save(); }); };
   bind("sMaint","maintenance",1); bind("sTarget","target",1); bind("sProtein","protein",1); bind("sGoal","goalWeight",0);
-  $("#sUsda").addEventListener("change",e=>{ S.settings.usdaKey=e.target.value.trim(); save(); });
-  $$("#sMode button").forEach(b=>b.onclick=()=>{ S.settings.goalMode=b.dataset.m; $$("#sMode button").forEach(x=>x.classList.toggle("on",x===b)); modeHint(); save(); });
+  $("#sFood").onchange=e=>{ S.settings.foodTracking=e.target.checked; save(); render(); toast(e.target.checked?"Food tracking on":"Food tracking hidden — your data is kept"); };
+  if(foodOn()){
+    const modeHint=()=>{ const m=S.settings.goalMode; $("#modeHint").textContent={
+      cut:"Deficit: green when at/under target, red once over maintenance.",
+      maintain:"Green when near maintenance; the goal-weight line stays flat.",
+      bulk:"Surplus: green when you hit your target; red if you fall below maintenance."}[m]; };
+    modeHint();
+    $("#sUsda").addEventListener("change",e=>{ S.settings.usdaKey=e.target.value.trim(); save(); });
+    $$("#sMode button").forEach(b=>b.onclick=()=>{ S.settings.goalMode=b.dataset.m; $$("#sMode button").forEach(x=>x.classList.toggle("on",x===b)); modeHint(); save(); });
+  }
   $("#sReminder").onchange=e=>{ S.settings.reminder=e.target.checked; save(); if(e.target.checked) reqReminder(); };
   $("#sTheme").onclick=toggleTheme;
   $("#openBackups2").onclick=openBackups;
@@ -1211,6 +1270,7 @@ $("#dToday").onclick=()=>{ curDate=todayStr(); renderToday(); syncDateNav(); };
 
 /* ---- boot ---- */
 load();
+view=foodOn()?"today":"weight";
 if(getSyncKey()) { /* cloud module will auto-connect */ }
 render();
 try{ checkWhatsNew(); }catch(e){}
