@@ -1,7 +1,7 @@
 {
-  "name": "Tabe — Calorie & Weight",
+  "name": "Tabe — Weight",
   "short_name": "Tabe",
-  "description": "Manual calorie counting and weight-trend tracker.",
+  "description": "Weight-trend tracker.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

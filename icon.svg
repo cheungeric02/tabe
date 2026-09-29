@@ -1,11 +1,18 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
   <rect width="512" height="512" rx="120" fill="#3f5aa8"/>
-  <!-- calorie ring -->
-  <circle cx="256" cy="256" r="150" fill="none" stroke="#ffffff" stroke-width="34" stroke-linecap="round"
-    stroke-dasharray="760 190" transform="rotate(-90 256 256)" opacity="0.95"/>
-  <!-- bowl -->
-  <path d="M170 244 a86 86 0 0 0 172 0 z" fill="#ffffff"/>
-  <rect x="168" y="226" width="176" height="30" rx="15" fill="#ffffff"/>
-  <!-- steam -->
-  <path d="M232 150 q-14 16 0 32 M280 150 q-14 16 0 32" fill="none" stroke="#ffffff" stroke-width="12" stroke-linecap="round" opacity="0.85"/>
+  <g transform="translate(256 256) scale(1.18) translate(-256 -256)">
+  <!-- bathroom scale platform (kept inside the maskable safe zone) -->
+  <rect x="136" y="136" width="240" height="240" rx="58" fill="#ffffff"/>
+  <!-- dial window -->
+  <path d="M184 238 A72 72 0 0 1 328 238 Z" fill="#dde1ff"/>
+  <g stroke="#3f5aa8" stroke-width="7" stroke-linecap="round">
+    <path d="M203 228 l9 -5 M215 199 l8 7 M240 181 l3 10 M272 181 l-3 10 M297 199 l-8 7 M309 228 l-9 -5"/>
+  </g>
+  <!-- needle -->
+  <path d="M256 238 L284 190" stroke="#3f5aa8" stroke-width="10" stroke-linecap="round"/>
+  <circle cx="256" cy="238" r="11" fill="#3f5aa8"/>
+  <!-- foot pads -->
+  <rect x="178" y="272" width="66" height="72" rx="26" fill="#dde1ff"/>
+  <rect x="268" y="272" width="66" height="72" rx="26" fill="#dde1ff"/>
+  </g>
 </svg>
