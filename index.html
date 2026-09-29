@@ -241,6 +241,35 @@ nav.tabs button.on .ni{background:var(--primary-container);color:var(--on-primar
 .qstep{width:52px;height:52px;border-radius:16px;background:var(--sc-high);font-size:24px;display:grid;place-items:center;flex:none}
 .qstep:active{background:var(--primary-container);color:var(--on-primary-container)}
 .seg button:disabled{opacity:.4;pointer-events:none}
+/* weight trend (MacroFactor-style) */
+.wtcard{padding:18px 14px 16px}
+.wtcard h3{margin-left:4px}
+.wthead{padding:0 4px;min-height:84px}
+.wtstats{display:flex;gap:34px}
+.wtstats .k{font-size:13px;color:var(--on-surface-variant)}
+.wtstats .v{font-size:30px;font-weight:800;line-height:1.15;letter-spacing:-.5px;font-variant-numeric:tabular-nums}
+.wtstats .v small{font-size:14px;font-weight:600;color:var(--on-surface-variant);margin-left:3px;letter-spacing:0}
+.wtdates{font-size:13.5px;color:var(--on-surface-variant);margin-top:2px}
+.wtchart{margin:8px 0 12px;touch-action:pan-y;user-select:none;-webkit-user-select:none}
+.wtsvg{display:block;overflow:visible}
+.wtsvg .grid{stroke:var(--outline-variant);stroke-width:1;stroke-dasharray:4 4}
+.wtsvg .axis{stroke:var(--outline);stroke-width:1;opacity:.6}
+.wtsvg .ylab,.wtsvg .xlab{font-size:11.5px;fill:var(--on-surface-variant)}
+.wtsvg .goal{stroke:var(--primary);stroke-width:1.3;stroke-dasharray:6 4;opacity:.8}
+.wtsvg .goallab{font-size:10.5px;fill:var(--primary);font-weight:700}
+.wtsvg .ln-sc{fill:none;stroke:color-mix(in srgb,var(--tertiary) 55%,transparent);stroke-width:1.6;stroke-linejoin:round}
+.wtsvg .ln-tr{fill:none;stroke:var(--tertiary);stroke-width:3;stroke-linejoin:round;stroke-linecap:round}
+.wtsvg .dot-sc{fill:color-mix(in srgb,var(--tertiary) 60%,transparent)}
+.wtsvg .scrub line{stroke:var(--on-surface);stroke-width:1.2;opacity:.55}
+.wtsvg .scrub .ss{fill:var(--sc-low);stroke:color-mix(in srgb,var(--tertiary) 70%,transparent);stroke-width:2}
+.wtsvg .scrub .st{fill:var(--tertiary);stroke:var(--sc-low);stroke-width:2.5}
+.wtrange button{padding:9px 2px}
+.wtlegend{display:flex;justify-content:center;gap:22px;margin-top:12px;font-size:13px;color:var(--on-surface)}
+.wtlegend span{display:inline-flex;align-items:center;gap:7px}
+.wtlegend .lg{display:inline-block;width:18px;border-radius:2px}
+.wtlegend .lg.sc{height:2px;background:color-mix(in srgb,var(--tertiary) 55%,transparent)}
+.wtlegend .lg.tr{height:4px;background:var(--tertiary)}
+.wthint{text-align:center;margin-top:8px}
 /* snackbar */
 .snack{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(150px + env(safe-area-inset-bottom));z-index:60;
   background:var(--sc-highest);color:var(--on-surface);border-radius:14px;padding:12px 16px;box-shadow:var(--shadow);display:none;align-items:center;gap:14px;font-size:14px;max-width:92vw}
@@ -388,7 +417,9 @@ const statusColor=s=>({good:"var(--good)",warn:"var(--warn)",over:"var(--bad)",n
 
 /* ============================ Weight logic ============================ */
 function weighArr(){ return Object.keys(S.weights).sort().map(d=>({date:d,w:num(S.weights[d].w)})).filter(x=>x.w>0); }
-function ema(arr,alpha=0.25){ let e=null; return arr.map(p=>{ e=e===null?p.w:alpha*p.w+(1-alpha)*e; return{date:p.date,w:e}; }); }
+// time-aware EMA: a skipped day counts as elapsed time, so the trend catches up after gaps instead of lagging
+function ema(arr,alpha=0.25){ let e=null, pd=null; return arr.map(p=>{ const g=pd?Math.max(1,daysBetween(pd,p.date)):1, k=1-Math.pow(1-alpha,g);
+  e=e===null?p.w:k*p.w+(1-k)*e; pd=p.date; return{date:p.date,w:e}; }); }
 function regression(pts){ // pts:[{x,y}] -> slope,intercept
   const n=pts.length; if(n<2) return null;
   let sx=0,sy=0,sxx=0,sxy=0; pts.forEach(p=>{sx+=p.x;sy+=p.y;sxx+=p.x*p.x;sxy+=p.x*p.y;});
@@ -580,17 +611,18 @@ function renderWeight(){
         a.reached?"reached! 🎉":(a.onTrack?`≈ ${fmtD(a.etaDate)} (${a.eta<60?Math.round(a.eta)+" days":round(a.eta/7,0)+" weeks"})`:"not trending toward goal yet")
       }</div>`:""}
     </div>`;
-    h+=`<div class="card"><div style="display:flex;align-items:center;margin-bottom:8px">
-        <h3 style="margin:0">Trend</h3><div class="spacer" style="flex:1"></div>
-        <div class="seg" style="width:auto" id="wRange">
-          <button data-r="30" class="on">30d</button><button data-r="90">90d</button><button data-r="0">All</button>
-        </div></div>
-      <div id="chart"></div></div>`;
+    h+=`<div class="card wtcard"><h3>Weight trend</h3>
+      <div class="wthead" id="wtHead"></div>
+      <div id="chart" class="wtchart"></div>
+      <div class="seg wtrange" id="wRange">${W_RANGES.map(r=>`<button data-r="${r[0]}" class="${r[0]===wRangeSel?"on":""}">${r[0]}</button>`).join("")}</div>
+      <div class="wtlegend"><span><i class="lg sc"></i>Scale weight</span><span><i class="lg tr"></i>Trend weight</span></div>
+      <div class="tiny wthint">Press and drag on the chart to see each day.</div></div>`;
     // recent list
     h+=`<div class="card flat"><h3>Weigh-ins</h3><div id="wlist"></div></div>`;
   }
   $("#main").innerHTML=h;
-  if(a){ drawChart(30); $$("#wRange button").forEach(b=>b.onclick=()=>{ $$("#wRange button").forEach(x=>x.classList.remove("on")); b.classList.add("on"); drawChart(+b.dataset.r); });
+  if(a){ drawChart(); $$("#wRange button").forEach(b=>b.onclick=()=>{ wRangeSel=b.dataset.r; try{localStorage.setItem("tabe_wrange",wRangeSel);}catch(e){}
+      $$("#wRange button").forEach(x=>x.classList.toggle("on",x===b)); drawChart(); });
     renderWlist(); }
 }
 function renderWlist(){
@@ -601,33 +633,96 @@ function renderWlist(){
   $$("[data-delw]").forEach(b=>b.onclick=()=>delWeight(b.dataset.delw));
   $$("[data-editw]").forEach(b=>b.onclick=()=>openWeighSheet(b.dataset.editw));
 }
-function drawChart(rangeDays){
-  const box=$("#chart"); if(!box) return;
-  let arr=weighArr(); if(rangeDays>0){ const cut=addDays(todayStr(),-rangeDays); arr=arr.filter(p=>p.date>=cut); }
-  if(arr.length<1){ box.innerHTML=`<div class="empty">Not enough data</div>`; return; }
-  const tr=ema(arr);
-  const W=560,H=200,pl=38,pr=12,pt=14,pb=24;
-  const xs=arr.map(p=>parseD(p.date).getTime());
-  const minX=Math.min(...xs),maxX=Math.max(...xs)||minX+1;
-  let vals=arr.map(p=>p.w).concat(tr.map(p=>p.w)); const g=num(S.settings.goalWeight);
-  if(g>0) vals.push(g);
-  let minY=Math.min(...vals),maxY=Math.max(...vals); if(minY===maxY){minY-=1;maxY+=1;} const padY=(maxY-minY)*0.12; minY-=padY;maxY+=padY;
-  const X=t=>pl+((t-minX)/(maxX-minX||1))*(W-pl-pr);
-  const Y=v=>pt+(1-(v-minY)/(maxY-minY||1))*(H-pt-pb);
-  const line=pts=>pts.map((p,i)=>(i?"L":"M")+X(parseD(p.date).getTime()).toFixed(1)+" "+Y(p.w).toFixed(1)).join(" ");
-  let svg=`<svg viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="none" style="display:block">`;
-  // grid y labels
-  for(let i=0;i<=3;i++){ const v=minY+(maxY-minY)*i/3; const y=Y(v);
-    svg+=`<line x1="${pl}" y1="${y}" x2="${W-pr}" y2="${y}" stroke="var(--outline-variant)" stroke-width="1" opacity=".5"/>
-      <text x="4" y="${y+4}" font-size="11" fill="var(--on-surface-variant)">${round(v,0)}</text>`; }
-  if(g>0){ const y=Y(g); svg+=`<line x1="${pl}" y1="${y}" x2="${W-pr}" y2="${y}" stroke="var(--primary)" stroke-width="1.5" stroke-dasharray="5 4"/>
-    <text x="${W-pr}" y="${y-4}" font-size="10" fill="var(--primary)" text-anchor="end">goal ${g}</text>`; }
-  // actual faint line + dots
-  svg+=`<path d="${line(arr)}" fill="none" stroke="var(--outline)" stroke-width="1.3" opacity=".45"/>`;
-  svg+=`<path d="${line(tr)}" fill="none" stroke="var(--tertiary)" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>`;
-  arr.forEach(p=>{ svg+=`<circle cx="${X(parseD(p.date).getTime()).toFixed(1)}" cy="${Y(p.w).toFixed(1)}" r="2.6" fill="var(--on-surface-variant)"/>`; });
-  svg+=`</svg>`;
-  box.innerHTML=svg+`<div style="display:flex;justify-content:space-between" class="tiny"><span>${fmtD(arr[0].date)}</span><span>trend ▬ &nbsp; actual •</span><span>${fmtD(arr[arr.length-1].date)}</span></div>`;
+const W_RANGES=[["1W",7],["1M",30],["3M",91],["6M",182],["1Y",365],["All",0]];
+let wRangeSel=(()=>{ try{ const v=localStorage.getItem("tabe_wrange"); return W_RANGES.some(r=>r[0]===v)?v:"3M"; }catch(e){ return "3M"; } })();
+let chartRO=null, chartW=0;
+// MacroFactor-style trend chart: drawn at the box's real pixel size (no stretching), scale + trend lines,
+// right-hand axis, dashed grid, and press-and-drag scrubbing that shows the day's numbers in the header.
+function drawChart(){
+  const box=$("#chart"), head=$("#wtHead"); if(!box||!head) return;
+  const all=weighArr(); if(!all.length){ box.innerHTML=""; head.innerHTML=""; return; }
+  const trAll=ema(all);
+  const days=(W_RANGES.find(r=>r[0]===wRangeSel)||W_RANGES[2])[1];
+  const end=all[all.length-1].date>todayStr()?all[all.length-1].date:todayStr();
+  const start=days>0?addDays(end,-days):all[0].date;
+  const idx=all.map((p,i)=>i).filter(i=>all[i].date>=start);
+  const lbl=v=>`${round(v,1)}<small>lb</small>`;
+  const rangeTxt=(a,b)=>{ const o={month:"short",day:"numeric",year:"numeric"}; return parseD(a).toLocaleDateString(undefined,o)+" – "+parseD(b).toLocaleDateString(undefined,o); };
+  if(!idx.length){ head.innerHTML=`<div class="wtdates">No weigh-ins in this range</div>`; box.innerHTML=`<div class="empty">Try a longer range.</div>`; return; }
+  const pts=idx.map(i=>all[i]), trs=idx.map(i=>trAll[i]);
+  const avg=pts.reduce((s,p)=>s+p.w,0)/pts.length, diff=trs[trs.length-1].w-trs[0].w;
+  const summary=()=>{ head.innerHTML=`<div class="wtstats"><div><div class="k">Average</div><div class="v">${lbl(avg)}</div></div>
+      <div><div class="k">Difference</div><div class="v">${diff>0?"+":diff<0?"−":""}${round(Math.abs(diff),1)}<small>lb</small></div></div></div>
+    <div class="wtdates">${rangeTxt(pts[0].date,pts[pts.length-1].date)}</div>`; };
+  const showDay=i=>{ head.innerHTML=`<div class="wtstats"><div><div class="k">Scale weight</div><div class="v">${lbl(pts[i].w)}</div></div>
+      <div><div class="k">Trend weight</div><div class="v">${lbl(trs[i].w)}</div></div></div>
+    <div class="wtdates">${parseD(pts[i].date).toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric",year:"numeric"})}</div>`; };
+  summary();
+
+  // real pixel size — keeps text crisp and the aspect ratio true on any screen (folded or unfolded)
+  const W=Math.max(260,Math.round(box.clientWidth||320)), H=Math.max(230,Math.min(420,Math.round(W*0.78)));
+  chartW=W;
+  const pl=2,pr=40,pt=12,pb=28, PW=W-pl-pr, PH=H-pt-pb;
+  const t0=parseD(start).getTime(), t1=Math.max(parseD(end).getTime(),t0+86400000);
+  // y domain from the visible points; the point just before the range is drawn (clipped) so lines enter from the edge
+  const prev=idx[0]>0?idx[0]-1:null;
+  const vals=pts.map(p=>p.w).concat(trs.map(p=>p.w));
+  let mn=Math.min(...vals), mx=Math.max(...vals); if(mx-mn<2){ const c=(mx+mn)/2; mn=c-1; mx=c+1; }
+  const pad=(mx-mn)*0.08; mn-=pad; mx+=pad;
+  const step=[0.5,1,2,2.5,5,10,20,25,50].find(s=>(mx-mn)/s<=4.5)||100;
+  const lo=Math.floor(mn/step)*step, hi=Math.ceil(mx/step)*step;
+  const X=d=>pl+((parseD(d).getTime()-t0)/(t1-t0))*PW;
+  const Y=v=>pt+(1-(v-lo)/(hi-lo))*PH;
+  const path=list=>list.map((p,i)=>(i&&daysBetween(list[i-1].date,p.date)<=45?"L":"M")+X(p.date).toFixed(1)+" "+Y(p.w).toFixed(1)).join(" ");
+  const scLine=(prev!=null?[all[prev]]:[]).concat(pts), trLine=(prev!=null?[trAll[prev]]:[]).concat(trs);
+
+  let s=`<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" class="wtsvg"><defs><clipPath id="wtclip"><rect x="${pl}" y="0" width="${PW}" height="${H}"/></clipPath></defs>`;
+  for(let v=lo; v<=hi+1e-9; v+=step){ const y=Y(v).toFixed(1);
+    s+=`<line class="grid" x1="${pl}" x2="${pl+PW}" y1="${y}" y2="${y}"/><text class="ylab" x="${W-2}" y="${+y+4}" text-anchor="end">${round(v,step<1?1:0)}</text>`; }
+  // x ticks: days for 1W, weekly for 1M, month starts beyond that
+  const spanD=daysBetween(start,end), ticks=[];
+  if(spanD<=10){ for(let d=start; d<=end; d=addDays(d,1)) ticks.push([d,parseD(d).toLocaleDateString(undefined,{weekday:"short"})]); }
+  else if(spanD<=45){ for(let d=end; d>=start; d=addDays(d,-7)) ticks.unshift([d,parseD(d).toLocaleDateString(undefined,{month:"short",day:"numeric"})]); }
+  else if(spanD>400){ const y0=parseD(start).getFullYear()+1, y1=parseD(end).getFullYear(), k=Math.max(1,Math.ceil((y1-y0+1)/6));
+    for(let y=y0; y<=y1; y++) if((y1-y)%k===0) ticks.push([y+"-01-01",String(y)]); }
+  else { const months=[]; const sd=parseD(start); let m=new Date(sd.getFullYear(),sd.getMonth()+1,1);
+    while(m.getTime()<=t1){ months.push(new Date(m)); m=new Date(m.getFullYear(),m.getMonth()+1,1); }
+    const k=Math.max(1,Math.ceil(months.length/6));
+    months.filter((_,i)=>i%k===0).forEach(m=>{ const d=m.getFullYear()+"-"+String(m.getMonth()+1).padStart(2,"0")+"-01";
+      ticks.push([d, m.getMonth()===0&&spanD>200?String(m.getFullYear()):m.toLocaleDateString(undefined,{month:"short"})]); }); }
+  s+=`<line class="axis" x1="${pl}" x2="${pl+PW}" y1="${pt+PH}" y2="${pt+PH}"/>`;
+  ticks.forEach(([d,t])=>{ const x=X(d); if(x<pl-1||x>pl+PW+1) return;
+    s+=`<line class="axis" x1="${x.toFixed(1)}" x2="${x.toFixed(1)}" y1="${pt+PH}" y2="${pt+PH+5}"/>`;
+    if(x>14&&x<pl+PW-10) s+=`<text class="xlab" x="${x.toFixed(1)}" y="${H-6}" text-anchor="middle">${t}</text>`; });
+  // goal line, only when it falls inside the visible range
+  const g=num(S.settings.goalWeight);
+  if(g>lo&&g<hi){ const y=Y(g).toFixed(1); s+=`<line class="goal" x1="${pl}" x2="${pl+PW}" y1="${y}" y2="${y}"/><text class="goallab" x="${pl+4}" y="${+y-5}">goal ${g}</text>`; }
+  s+=`<g clip-path="url(#wtclip)"><path class="ln-sc" d="${path(scLine)}"/><path class="ln-tr" d="${path(trLine)}"/>`;
+  const lone=i=>(i===0||daysBetween(pts[i-1].date,pts[i].date)>45)&&(i===pts.length-1||daysBetween(pts[i].date,pts[i+1].date)>45);
+  pts.forEach((p,i)=>{ if(pts.length>20&&!lone(i)) return; s+=`<circle class="dot-sc" cx="${X(p.date).toFixed(1)}" cy="${Y(p.w).toFixed(1)}" r="2.8"/>`; });
+  s+=`</g><g class="scrub" id="wtScrub" style="display:none"><line id="wtSL" y1="${pt}" y2="${pt+PH}"/><circle id="wtSS" r="4.5" class="ss"/><circle id="wtST" r="6" class="st"/></g>`;
+  s+=`<rect id="wtHit" x="0" y="0" width="${W}" height="${H}" fill="transparent"/></svg>`;
+  box.innerHTML=s;
+
+  // press-and-drag (or hover with a mouse) to read any weigh-in
+  const hit=$("#wtHit"), sc=$("#wtScrub"), svg=box.querySelector("svg");
+  const pick=ev=>{ const r=svg.getBoundingClientRect(), x=(ev.clientX-r.left)*(W/r.width);
+    let best=0,bd=1e9; pts.forEach((p,i)=>{ const dd=Math.abs(X(p.date)-x); if(dd<bd){bd=dd;best=i;} });
+    const cx=X(pts[best].date).toFixed(1); $("#wtSL").setAttribute("x1",cx); $("#wtSL").setAttribute("x2",cx);
+    $("#wtSS").setAttribute("cx",cx); $("#wtSS").setAttribute("cy",Y(pts[best].w).toFixed(1));
+    $("#wtST").setAttribute("cx",cx); $("#wtST").setAttribute("cy",Y(trs[best].w).toFixed(1));
+    sc.style.display=""; showDay(best); };
+  const clear=()=>{ sc.style.display="none"; summary(); };
+  let down=false;
+  hit.addEventListener("pointerdown",ev=>{ down=true; try{hit.setPointerCapture(ev.pointerId);}catch(e){} pick(ev); });
+  hit.addEventListener("pointermove",ev=>{ if(down||ev.pointerType==="mouse") pick(ev); });
+  hit.addEventListener("pointerup",()=>{ down=false; clear(); });
+  hit.addEventListener("pointercancel",()=>{ down=false; clear(); });
+  hit.addEventListener("pointerleave",ev=>{ if(!down&&ev.pointerType==="mouse") clear(); });
+
+  // redraw when the width changes (e.g. folding / unfolding the phone)
+  if(chartRO) chartRO.disconnect();
+  if(window.ResizeObserver){ chartRO=new ResizeObserver(()=>{ const b=$("#chart"); if(b&&Math.abs(Math.round(b.clientWidth)-chartW)>2) drawChart(); }); chartRO.observe(box); }
 }
 
 /* ---------- STATS ---------- */
@@ -735,8 +830,15 @@ function heatmap(){
 /* ---------- SETTINGS ---------- */
 /* ============================ Patch notes / What's New ============================ */
 // APP_VERSION MUST equal the sw.js cache number (tabe-v<N>) and be bumped together.
-const APP_VERSION=19;
+const APP_VERSION=20;
 const PATCH_NOTES=[
+  { v:20, date:"2026-09-29", title:"MacroFactor-style weight trend", notes:[
+    "New Average and Difference header for the chosen range.",
+    "Scale weight and smoother trend weight drawn as two lines, with a right-side axis and dashed grid.",
+    "Range chips: 1W, 1M, 3M, 6M, 1Y and All (remembered between visits).",
+    "Press and drag on the chart to see the scale and trend weight for each day.",
+    "Chart draws at your screen's real size, so it stays sharp and never stretched, folded or unfolded.",
+    "Trend now accounts for days between weigh-ins, so it catches up properly after gaps."]},
   { v:19, date:"2026-09-29", title:"New scale icon", notes:[
     "Changed the app icon and header logo to a bathroom scale, since Tabe is now weight-first."]},
   { v:18, date:"2026-09-26", title:"Weight-first Tabe", notes:[
